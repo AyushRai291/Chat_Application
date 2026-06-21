@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import User from "../models/User.js";
 import { generateToken } from "../utils/generateToken.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
 
 // ------------
 // SIGNUP SETUP
@@ -13,8 +14,7 @@ const signupSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
-export const signup = async (req, res) => {
-  try {
+export const signup = asyncHandler(async (req, res) => {
     const result = signupSchema.safeParse(req.body);
 
     if (!result.success) {
@@ -52,12 +52,7 @@ export const signup = async (req, res) => {
         avatar: user.avatar,
       },
     });
-  } catch (err) {
-    res.status(500).json({
-      message: "Internal server error",
-    });
-  }
-};
+});
 
 
 
@@ -73,8 +68,7 @@ const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
-export const login = async (req, res) => {
-  try {
+export const login = asyncHandler(async (req, res) => {
     const result = loginSchema.safeParse(req.body);
 
     if (!result.success) {
@@ -112,12 +106,7 @@ export const login = async (req, res) => {
         avatar: user.avatar,
       },
     });
-  } catch (err) {
-    res.status(500).json({
-      message: "Internal server error",
-    });
-  }
-};
+});
 
 
 
@@ -126,22 +115,18 @@ export const login = async (req, res) => {
 // LogOut SETUP
 // ------------
 
-export const logout = (req,res)=>{
-  try{
-    res.cookie("jwt","",{
-      maxAge:0,
-    })
-    res.status(200).json({
-      message:"Logout Successful",
-    });
+export const logout = asyncHandler(async (req, res) => {
+  res.cookie("jwt", "", {
+    httpOnly: true,
+    sameSite: "strict",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 0,
+  });
 
-  }
-  catch (err){
-    res.status(500).json({
-      message : "Internal server error",
-    });
-  };
-} ;
+  res.status(200).json({
+    message: "Logout successful",
+  });
+});
 
 
 // ------------
@@ -150,8 +135,8 @@ export const logout = (req,res)=>{
 // login ke baad jwt token verify se kaam hojayega
 // ------------
 
-export const getMe = (req,res) => {
+export const getMe = asyncHandler(async (req, res) => {
   res.status(200).json({
-    user:req.user,
+    user: req.user,
   });
-};
+});
