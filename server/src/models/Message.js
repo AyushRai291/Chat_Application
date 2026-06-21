@@ -56,6 +56,7 @@ const messageSchema = new mongoose.Schema(
     text: {
       type: String,
       trim: true,
+      maxlength: 5000,
       default: "",
     },
     attachments: {
@@ -107,6 +108,16 @@ const messageSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+messageSchema.pre("validate", function () {
+  const hasText = Boolean(this.text && this.text.trim());
+  const hasAttachments =
+    Array.isArray(this.attachments) && this.attachments.length > 0;
+
+  if (!hasText && !hasAttachments) {
+    this.invalidate("text", "Message must include text or an attachment");
+  }
+});
 
 messageSchema.index({ conversation: 1, createdAt: 1 });
 messageSchema.index({ sender: 1 });

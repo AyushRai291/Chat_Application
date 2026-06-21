@@ -23,7 +23,8 @@ export const signup = asyncHandler(async (req, res) => {
       });
     }
 
-    const { name, email, password } = result.data;
+    const { name, password } = result.data;
+    const email = result.data.email.toLowerCase();
 
     const existingUser = await User.findOne({ email });
 
@@ -77,7 +78,8 @@ export const login = asyncHandler(async (req, res) => {
       });
     }
 
-    const { email, password } = result.data;
+    const { password } = result.data;
+    const email = result.data.email.toLowerCase();
 
     const user = await User.findOne({ email });
 
