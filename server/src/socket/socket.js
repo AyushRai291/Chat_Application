@@ -1,5 +1,7 @@
 import { Server } from "socket.io";
+import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
+import Conversation from "../models/Conversation.js";
 import User from "../models/User.js";
 
 const CLIENT_URL = "http://localhost:5173";
@@ -57,6 +59,36 @@ const buildPresenceUser = (userId, user, fallback = {}) => {
     isOnline: fallback.isOnline ?? false,
     lastSeen: fallback.lastSeen || null,
   };
+};
+
+const buildSocketUser = (user) => ({
+  _id: user._id.toString(),
+  name: user.name,
+  email: user.email,
+  avatar: user.avatar,
+});
+
+const findUserConversation = (conversationId, userId) => {
+  if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+    return null;
+  }
+
+  return Conversation.findOne({
+    _id: conversationId,
+    participants: userId,
+  }).select("participants");
+};
+
+const emitToOtherParticipants = (conversation, senderId, eventName, payload) => {
+  conversation.participants.forEach((participantId) => {
+    const receiverId = participantId.toString();
+
+    if (receiverId === senderId) {
+      return;
+    }
+
+    ioInstance.to(`user:${receiverId}`).emit(eventName, payload);
+  });
 };
 
 const addUserSocket = (userId, socketId) => {
@@ -150,6 +182,7 @@ export const setupSocket = (httpServer) => {
 
   ioInstance.on("connection", async (socket) => {
     const userId = socket.user._id.toString();
+    const typingConversationIds = new Set();
 
     socket.join(`user:${userId}`);
 
@@ -187,7 +220,55 @@ export const setupSocket = (httpServer) => {
       });
     });
 
+    socket.on("typing:start", async ({ conversationId } = {}) => {
+      const conversation = await findUserConversation(conversationId, userId);
+
+      if (!conversation) {
+        return;
+      }
+
+      typingConversationIds.add(conversation._id.toString());
+
+      emitToOtherParticipants(conversation, userId, "typing:start", {
+        conversationId: conversation._id.toString(),
+        user: buildSocketUser(socket.user),
+      });
+    });
+
+    socket.on("typing:stop", async ({ conversationId } = {}) => {
+      const conversation = await findUserConversation(conversationId, userId);
+
+      if (!conversation) {
+        return;
+      }
+
+      typingConversationIds.delete(conversation._id.toString());
+
+      emitToOtherParticipants(conversation, userId, "typing:stop", {
+        conversationId: conversation._id.toString(),
+        user: buildSocketUser(socket.user),
+      });
+    });
+
     socket.on("disconnect", async () => {
+      typingConversationIds.forEach((conversationId) => {
+        Conversation.findById(conversationId)
+          .select("participants")
+          .then((conversation) => {
+            if (!conversation) {
+              return;
+            }
+
+            emitToOtherParticipants(conversation, userId, "typing:stop", {
+              conversationId,
+              user: buildSocketUser(socket.user),
+            });
+          })
+          .catch((err) => {
+            console.error("Typing cleanup failed:", err.message);
+          });
+      });
+
       const isNowOffline = removeUserSocket(userId, socket.id);
 
       if (isNowOffline) {

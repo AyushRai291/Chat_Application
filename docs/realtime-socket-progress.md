@@ -2,7 +2,7 @@
 
 Date: 2026-06-22
 
-Status: Socket setup, realtime message receive, aur presence base working hai.
+Status: Socket setup, realtime message receive, presence base, aur typing indicator working layer ready hai.
 
 ## Aaj Kya Kaam Hua
 
@@ -21,6 +21,10 @@ Status: Socket setup, realtime message receive, aur presence base working hai.
 - Socket disconnect par user offline mark hota hai aur `lastSeen` update hota hai.
 - Presence events me ab raw IDs ke saath user details bhi ja rahi hain.
 - Client presence UI me name/email ke saath online users aur readable last seen dikh raha hai.
+- Typing indicator socket events add hue: `typing:start` aur `typing:stop`.
+- Typing events conversation membership verify karne ke baad hi emit hote hain.
+- Client message input type karte waqt typing start bhejta hai aur pause/send/disconnect par stop bhejta hai.
+- Direct conversation testing ke liye client me user search + chat button add hua.
 
 ## Files Touched
 
@@ -37,6 +41,8 @@ Status: Socket setup, realtime message receive, aur presence base working hai.
   - Ping/pong test event.
   - Multi-tab safe online/offline tracking.
   - Presence events: `presence:online-users` aur `presence:update`.
+  - Typing events: `typing:start` aur `typing:stop`.
+  - Typing events ke liye conversation membership check.
 
 - `server/src/models/User.js`
   - `isOnline` field add kiya.
@@ -66,6 +72,8 @@ Status: Socket setup, realtime message receive, aur presence base working hai.
   - `message:new` listener se realtime messages UI me add ho rahe hain.
   - Presence list user name/email ke saath show ho rahi hai.
   - Last presence updates readable date/time ke saath show ho rahe hain.
+  - User search aur direct conversation create test controls.
+  - Typing indicator display.
 
 ## Test Flow
 
@@ -94,9 +102,11 @@ Steps:
 1. Email/password se login karo.
 2. `Create Saved Conversation` click karo.
 3. `Connect Socket` click karo.
-4. `Ping` click karo.
-5. Message type karke `Send` click karo.
-6. `Disconnect` click karke offline + last seen test karo.
+4. `Search` se doosra user dhoondo aur `Chat` click karke direct conversation banao.
+5. `Ping` click karo.
+6. Message type karke `Send` click karo.
+7. Typing indicator test ke liye second browser/tab me doosre user se same conversation open karo.
+8. `Disconnect` click karke offline + last seen test karo.
 
 Expected result:
 
@@ -105,6 +115,8 @@ Expected result:
 - Message list me new message socket event se add hota hai.
 - Presence me logged-in user ka name/email online list me dikhna chahiye.
 - Disconnect ke baad user offline update aur readable last seen dikhna chahiye.
+- Jab doosra participant same conversation me type kare, UI me `<name> is typing...` dikhna chahiye.
+- Typing rukne/send/disconnect par typing indicator clear hona chahiye.
 
 ## Important Learning Notes
 
@@ -120,6 +132,8 @@ Expected result:
   - delivery/read receipts
 - `onlineUsers` map same user ke multiple tabs/devices ko track karta hai.
 - User tabhi offline mark hota hai jab uske saare active sockets disconnect ho jaate hain.
+- Typing indicator database me save nahi hota, kyunki ye short-lived realtime state hai.
+- Server typing event emit karne se pehle check karta hai ki sender conversation ka participant hai.
 
 ## Current Known Cleanup
 
@@ -131,19 +145,20 @@ Expected result:
 Current feature layer:
 
 ```txt
-Online/offline status + last seen
+Typing indicator
 ```
 
 Done:
 
-1. `User` model me `isOnline` aur `lastSeen` fields add karna.
-2. Socket connect par user online mark karna.
-3. Socket disconnect par user offline aur `lastSeen` update karna.
-4. Client ko online users ka event emit karna.
-5. Presence UI ko user details ke saath upgrade karna.
+1. `typing:start` event add karna.
+2. `typing:stop` event add karna.
+3. Conversation membership validation add karna.
+4. Client input typing debounce add karna.
+5. Typing indicator UI add karna.
+6. Direct conversation test controls add karna.
 
 Next feature layer:
 
 ```txt
-Typing indicator
+Delivered/read receipts
 ```

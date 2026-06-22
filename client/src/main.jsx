@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import axios from "axios";
-import { connectSocket, disconnectSocket } from "./lib/socket.js";
+import { connectSocket, disconnectSocket, getSocket } from "./lib/socket.js";
 
 axios.defaults.baseURL = "http://localhost:5000";
 axios.defaults.withCredentials = true;
@@ -25,6 +25,8 @@ function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [currentUser, setCurrentUser] = useState(null);
+  const [userSearch, setUserSearch] = useState("");
+  const [foundUsers, setFoundUsers] = useState([]);
 
   const [conversationId, setConversationId] = useState("");
   const [text, setText] = useState("");
@@ -33,12 +35,58 @@ function App() {
   const [status, setStatus] = useState("Not connected");
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [presenceUpdates, setPresenceUpdates] = useState([]);
+  const [typingUsers, setTypingUsers] = useState([]);
 
   const conversationIdRef = useRef("");
+  const isTypingRef = useRef(false);
+  const typingStopTimerRef = useRef(null);
 
   useEffect(() => {
+    if (conversationIdRef.current && isTypingRef.current) {
+      emitTypingStop(conversationIdRef.current);
+    }
+
     conversationIdRef.current = conversationId.trim();
+    setTypingUsers([]);
   }, [conversationId]);
+
+  const emitTypingStart = (targetConversationId) => {
+    const socket = getSocket();
+
+    if (!socket?.connected || !targetConversationId || isTypingRef.current) {
+      return;
+    }
+
+    socket.emit("typing:start", {
+      conversationId: targetConversationId,
+    });
+
+    isTypingRef.current = true;
+  };
+
+  const emitTypingStop = (targetConversationId = conversationIdRef.current) => {
+    const socket = getSocket();
+
+    if (!socket?.connected || !targetConversationId || !isTypingRef.current) {
+      return;
+    }
+
+    socket.emit("typing:stop", {
+      conversationId: targetConversationId,
+    });
+
+    isTypingRef.current = false;
+  };
+
+  const scheduleTypingStop = () => {
+    if (typingStopTimerRef.current) {
+      clearTimeout(typingStopTimerRef.current);
+    }
+
+    typingStopTimerRef.current = setTimeout(() => {
+      emitTypingStop();
+    }, 1200);
+  };
 
   // Login ke baad backend JWT ko httpOnly cookie me save karta hai.
   // Client JS cookie read nahi karega, browser automatically bhejega.
@@ -65,6 +113,28 @@ function App() {
     setStatus("Saved conversation ready.");
   };
 
+  const handleSearchUsers = async () => {
+    const { data } = await axios.get("/api/users", {
+      params: {
+        search: userSearch,
+      },
+    });
+
+    setFoundUsers(data.users);
+    setStatus(`Found ${data.users.length} user(s).`);
+  };
+
+  const handleCreateDirectConversation = async (receiverId) => {
+    const { data } = await axios.post("/api/conversations", {
+      receiverId,
+    });
+
+    setConversationId(data.conversation._id);
+    setMessages([]);
+    setTypingUsers([]);
+    setStatus("Direct conversation ready.");
+  };
+
   // Socket connect karte waqt old listeners clear karna important hai.
   // Warna button baar baar click karne par duplicate events fire honge.
   const handleConnectSocket = () => {
@@ -76,6 +146,8 @@ function App() {
     socket.off("message:new");
     socket.off("presence:online-users");
     socket.off("presence:update");
+    socket.off("typing:start");
+    socket.off("typing:stop");
 
     socket.on("connect", () => {
       setStatus(`Socket connected: ${socket.id}`);
@@ -116,6 +188,34 @@ function App() {
       );
     });
 
+    socket.on("typing:start", (data) => {
+      if (data.conversationId !== conversationIdRef.current) {
+        return;
+      }
+
+      setTypingUsers((currentUsers) => {
+        const alreadyTyping = currentUsers.some(
+          (user) => user._id === data.user._id
+        );
+
+        if (alreadyTyping) {
+          return currentUsers;
+        }
+
+        return [...currentUsers, data.user];
+      });
+    });
+
+    socket.on("typing:stop", (data) => {
+      if (data.conversationId !== conversationIdRef.current) {
+        return;
+      }
+
+      setTypingUsers((currentUsers) =>
+        currentUsers.filter((user) => user._id !== data.user._id)
+      );
+    });
+
     socket.on("message:new", (data) => {
       // Sirf current conversation ke messages UI me add karenge.
       if (data.conversationId !== conversationIdRef.current) {
@@ -135,6 +235,12 @@ function App() {
         return [...currentMessages, data.message];
       });
 
+      if (data.message.sender?._id) {
+        setTypingUsers((currentUsers) =>
+          currentUsers.filter((user) => user._id !== data.message.sender._id)
+        );
+      }
+
       setStatus("New message received.");
     });
   };
@@ -153,6 +259,7 @@ function App() {
     }
 
     setStatus("Message sent. Waiting for socket event.");
+    emitTypingStop();
 
     // HTTP request message ko DB me save karegi.
     // UI me message socket event se add hoga, direct response se nahi.
@@ -164,7 +271,33 @@ function App() {
     setText("");
   };
 
+  const handleTextChange = (event) => {
+    const nextText = event.target.value;
+    const targetConversationId = conversationIdRef.current;
+
+    setText(nextText);
+
+    if (!targetConversationId) {
+      return;
+    }
+
+    if (!nextText.trim()) {
+      emitTypingStop(targetConversationId);
+      return;
+    }
+
+    emitTypingStart(targetConversationId);
+    scheduleTypingStop();
+  };
+
   const handleDisconnect = () => {
+    emitTypingStop();
+
+    if (typingStopTimerRef.current) {
+      clearTimeout(typingStopTimerRef.current);
+      typingStopTimerRef.current = null;
+    }
+
     disconnectSocket();
 
     if (currentUser) {
@@ -192,6 +325,7 @@ function App() {
     }
 
     setStatus("Socket disconnected");
+    setTypingUsers([]);
   };
 
   return (
@@ -225,6 +359,40 @@ function App() {
         <button onClick={handlePing}>Ping</button>
         <button onClick={handleDisconnect}>Disconnect</button>
       </div>
+
+      <section style={{ marginTop: 20 }}>
+        <h3>Users</h3>
+
+        <input
+          style={{ width: "70%", padding: 10 }}
+          placeholder="Search users by name or email"
+          value={userSearch}
+          onChange={(event) => setUserSearch(event.target.value)}
+        />
+
+        <button
+          onClick={handleSearchUsers}
+          style={{ width: "30%", padding: 10 }}
+        >
+          Search
+        </button>
+
+        <ul>
+          {foundUsers.map((user) => (
+            <li key={user._id}>
+              <strong>{getDisplayName(user)}</strong>
+              {user.email ? ` - ${user.email}` : ""}
+              {user.isOnline ? " - online" : ""}
+              <button
+                onClick={() => handleCreateDirectConversation(user._id)}
+                style={{ marginLeft: 8 }}
+              >
+                Chat
+              </button>
+            </li>
+          ))}
+        </ul>
+      </section>
 
       <section style={{ marginTop: 20 }}>
         <h3>Presence</h3>
@@ -265,7 +433,7 @@ function App() {
           style={{ width: "75%", padding: 10 }}
           placeholder="Type message"
           value={text}
-          onChange={(event) => setText(event.target.value)}
+          onChange={handleTextChange}
         />
 
         <button type="submit" style={{ width: "25%", padding: 10 }}>
@@ -274,6 +442,13 @@ function App() {
       </form>
 
       <p style={{ marginTop: 20 }}>{status}</p>
+
+      {typingUsers.length > 0 && (
+        <p>
+          {typingUsers.map(getDisplayName).join(", ")}{" "}
+          {typingUsers.length === 1 ? "is" : "are"} typing...
+        </p>
+      )}
 
       <ul>
         {messages.map((message) => (
