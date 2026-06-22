@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { getIO } from "../socket/socket.js";
 
 const DEFAULT_MESSAGE_LIMIT = 30;
 const MAX_MESSAGE_LIMIT = 50;
@@ -157,6 +158,22 @@ export const sendMessage = asyncHandler(async (req, res) => {
   });
 
   const populatedMessage = await populateMessage(Message.findById(message._id));
+
+  // Message DB me save ho chuka hai.
+  // Ab same message conversation ke participants ko realtime bhejna hai.
+  const io = getIO();
+
+  if (io) {
+    const payload = {
+      conversationId: conversation._id.toString(),
+      message: populatedMessage.toObject(),
+    };
+
+    // Har participant apne personal socket room me hai: user:<userId>
+    conversation.participants.forEach((participantId) => {
+      io.to(`user:${participantId.toString()}`).emit("message:new", payload);
+    });
+  }
 
   res.status(201).json({
     message: populatedMessage,

@@ -23,6 +23,18 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+
+    // User abhi socket se connected hai ya nahi.
+    isOnline: {
+      type: Boolean,
+      default: false,
+    },
+
+    // User last time kab offline hua tha.
+    lastSeen: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
