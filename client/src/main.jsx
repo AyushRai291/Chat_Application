@@ -21,6 +21,32 @@ const getDisplayName = (user) => {
   return user?.name || user?.email || user?._id || "Unknown user";
 };
 
+const getId = (value) => {
+  return value?._id || value?.toString?.() || value;
+};
+
+const getReceiptLabel = (message) => {
+  if (message.status === "read") {
+    return "Read";
+  }
+
+  if (message.status === "delivered") {
+    return "Delivered";
+  }
+
+  return "Sent";
+};
+
+const reactionOptions = ["👍", "❤️", "😂"];
+
+const getMessageText = (message) => {
+  if (message.deletedForEveryone) {
+    return "This message was deleted";
+  }
+
+  return message.text;
+};
+
 function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,6 +57,9 @@ function App() {
   const [conversationId, setConversationId] = useState("");
   const [text, setText] = useState("");
   const [messages, setMessages] = useState([]);
+  const [replyTo, setReplyTo] = useState(null);
+  const [editingMessage, setEditingMessage] = useState(null);
+  const [editText, setEditText] = useState("");
 
   const [status, setStatus] = useState("Not connected");
   const [onlineUsers, setOnlineUsers] = useState([]);
@@ -38,8 +67,13 @@ function App() {
   const [typingUsers, setTypingUsers] = useState([]);
 
   const conversationIdRef = useRef("");
+  const currentUserRef = useRef(null);
   const isTypingRef = useRef(false);
   const typingStopTimerRef = useRef(null);
+
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
 
   useEffect(() => {
     if (conversationIdRef.current && isTypingRef.current) {
@@ -88,6 +122,49 @@ function App() {
     }, 1200);
   };
 
+  const emitMessagesRead = (targetConversationId = conversationIdRef.current) => {
+    const socket = getSocket();
+
+    if (!socket?.connected || !targetConversationId) {
+      return;
+    }
+
+    socket.emit("messages:read", {
+      conversationId: targetConversationId,
+    });
+  };
+
+  const applyReceiptUpdates = ({ receipts }) => {
+    const receiptByMessageId = new Map(
+      receipts.map((receipt) => [receipt.messageId, receipt])
+    );
+
+    setMessages((currentMessages) =>
+      currentMessages.map((message) => {
+        const receipt = receiptByMessageId.get(message._id);
+
+        if (!receipt) {
+          return message;
+        }
+
+        return {
+          ...message,
+          status: receipt.status || message.status,
+          deliveredTo: receipt.deliveredTo || message.deliveredTo || [],
+          readBy: receipt.readBy || message.readBy || [],
+        };
+      })
+    );
+  };
+
+  const applyMessageUpdate = (updatedMessage) => {
+    setMessages((currentMessages) =>
+      currentMessages.map((message) =>
+        message._id === updatedMessage._id ? updatedMessage : message
+      )
+    );
+  };
+
   // Login ke baad backend JWT ko httpOnly cookie me save karta hai.
   // Client JS cookie read nahi karega, browser automatically bhejega.
   const handleLogin = async (event) => {
@@ -110,6 +187,8 @@ function App() {
 
     setConversationId(data.conversation._id);
     setMessages([]);
+    setReplyTo(null);
+    setEditingMessage(null);
     setStatus("Saved conversation ready.");
   };
 
@@ -132,6 +211,8 @@ function App() {
     setConversationId(data.conversation._id);
     setMessages([]);
     setTypingUsers([]);
+    setReplyTo(null);
+    setEditingMessage(null);
     setStatus("Direct conversation ready.");
   };
 
@@ -148,6 +229,12 @@ function App() {
     socket.off("presence:update");
     socket.off("typing:start");
     socket.off("typing:stop");
+    socket.off("receipt:delivered");
+    socket.off("receipt:read");
+    socket.off("message:updated");
+    socket.off("message:deleted-for-me");
+    socket.off("message:deleted-for-everyone");
+    socket.off("message:reaction-updated");
 
     socket.on("connect", () => {
       setStatus(`Socket connected: ${socket.id}`);
@@ -216,6 +303,62 @@ function App() {
       );
     });
 
+    socket.on("receipt:delivered", (data) => {
+      if (data.conversationId !== conversationIdRef.current) {
+        return;
+      }
+
+      applyReceiptUpdates(data);
+      setStatus(`${getDisplayName(data.user)} received message(s).`);
+    });
+
+    socket.on("receipt:read", (data) => {
+      if (data.conversationId !== conversationIdRef.current) {
+        return;
+      }
+
+      applyReceiptUpdates(data);
+      setStatus(`${getDisplayName(data.user)} read message(s).`);
+    });
+
+    socket.on("message:updated", (data) => {
+      if (data.conversationId !== conversationIdRef.current) {
+        return;
+      }
+
+      applyMessageUpdate(data.message);
+      setStatus("Message edited.");
+    });
+
+    socket.on("message:deleted-for-me", (data) => {
+      if (data.conversationId !== conversationIdRef.current) {
+        return;
+      }
+
+      setMessages((currentMessages) =>
+        currentMessages.filter((message) => message._id !== data.messageId)
+      );
+      setStatus("Message deleted for you.");
+    });
+
+    socket.on("message:deleted-for-everyone", (data) => {
+      if (data.conversationId !== conversationIdRef.current) {
+        return;
+      }
+
+      applyMessageUpdate(data.message);
+      setStatus("Message deleted for everyone.");
+    });
+
+    socket.on("message:reaction-updated", (data) => {
+      if (data.conversationId !== conversationIdRef.current) {
+        return;
+      }
+
+      applyMessageUpdate(data.message);
+      setStatus("Reaction updated.");
+    });
+
     socket.on("message:new", (data) => {
       // Sirf current conversation ke messages UI me add karenge.
       if (data.conversationId !== conversationIdRef.current) {
@@ -239,6 +382,12 @@ function App() {
         setTypingUsers((currentUsers) =>
           currentUsers.filter((user) => user._id !== data.message.sender._id)
         );
+      }
+
+      const currentUserId = currentUserRef.current?._id;
+
+      if (currentUserId && getId(data.message.sender) !== currentUserId) {
+        emitMessagesRead(data.conversationId);
       }
 
       setStatus("New message received.");
@@ -266,9 +415,61 @@ function App() {
     await axios.post("/api/messages", {
       conversationId: conversationId.trim(),
       text: text.trim(),
+      replyTo: replyTo?._id,
     });
 
     setText("");
+    setReplyTo(null);
+  };
+
+  const handleStartEdit = (message) => {
+    setEditingMessage(message);
+    setEditText(message.text || "");
+    setReplyTo(null);
+  };
+
+  const handleSaveEdit = async (event) => {
+    event.preventDefault();
+
+    if (!editingMessage || !editText.trim()) {
+      setStatus("Edit text is required.");
+      return;
+    }
+
+    const { data } = await axios.patch(`/api/messages/${editingMessage._id}`, {
+      text: editText.trim(),
+    });
+
+    applyMessageUpdate(data.message);
+    setEditingMessage(null);
+    setEditText("");
+    setStatus("Edit saved. Waiting for socket event.");
+  };
+
+  const handleDeleteForMe = async (messageId) => {
+    await axios.delete(`/api/messages/${messageId}/for-me`);
+    setMessages((currentMessages) =>
+      currentMessages.filter((message) => message._id !== messageId)
+    );
+    setStatus("Delete for me requested.");
+  };
+
+  const handleDeleteForEveryone = async (messageId) => {
+    const { data } = await axios.delete(
+      `/api/messages/${messageId}/for-everyone`
+    );
+
+    applyMessageUpdate(data.message);
+    setStatus("Delete for everyone requested.");
+  };
+
+  const handleToggleReaction = async (messageId, emoji) => {
+    const { data } = await axios.post(`/api/messages/${messageId}/reactions`, {
+      emoji,
+    });
+
+    applyMessageUpdate(data.message);
+    setStatus("Reaction sent. Waiting for socket event.");
   };
 
   const handleTextChange = (event) => {
@@ -428,6 +629,15 @@ function App() {
         onChange={(event) => setConversationId(event.target.value)}
       />
 
+      {replyTo && (
+        <div style={{ marginTop: 12, padding: 8, border: "1px solid #aaa" }}>
+          Replying to {getDisplayName(replyTo.sender)}: {getMessageText(replyTo)}
+          <button onClick={() => setReplyTo(null)} style={{ marginLeft: 8 }}>
+            Cancel
+          </button>
+        </div>
+      )}
+
       <form onSubmit={handleSendMessage} style={{ marginTop: 12 }}>
         <input
           style={{ width: "75%", padding: 10 }}
@@ -441,6 +651,36 @@ function App() {
         </button>
       </form>
 
+      {editingMessage && (
+        <form onSubmit={handleSaveEdit} style={{ marginTop: 12 }}>
+          <input
+            style={{ width: "75%", padding: 10 }}
+            placeholder="Edit message"
+            value={editText}
+            onChange={(event) => setEditText(event.target.value)}
+          />
+
+          <button type="submit" style={{ width: "12.5%", padding: 10 }}>
+            Save
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setEditingMessage(null);
+              setEditText("");
+            }}
+            style={{ width: "12.5%", padding: 10 }}
+          >
+            Cancel
+          </button>
+        </form>
+      )}
+
+      <button onClick={() => emitMessagesRead()} style={{ marginTop: 8 }}>
+        Mark Conversation Read
+      </button>
+
       <p style={{ marginTop: 20 }}>{status}</p>
 
       {typingUsers.length > 0 && (
@@ -452,7 +692,85 @@ function App() {
 
       <ul>
         {messages.map((message) => (
-          <li key={message._id}>{message.text}</li>
+          <li key={message._id}>
+            {message.replyTo && (
+              <blockquote style={{ margin: "6px 0", color: "#555" }}>
+                Reply to {getDisplayName(message.replyTo.sender)}:{" "}
+                {message.replyTo.deletedForEveryone
+                  ? "This message was deleted"
+                  : message.replyTo.text}
+              </blockquote>
+            )}
+
+            <div>
+              {getMessageText(message)}
+              {message.isEdited ? " (edited)" : ""}
+            </div>
+
+            <small>
+              {getDisplayName(message.sender)} -{" "}
+              {getId(message.sender) === currentUser?._id
+                ? getReceiptLabel(message)
+                : "Received"}
+            </small>
+
+            {message.reactions?.length > 0 && (
+              <div>
+                {message.reactions.map((reaction) => (
+                  <span
+                    key={`${message._id}-${getId(reaction.user)}`}
+                    style={{ marginRight: 8 }}
+                  >
+                    {reaction.emoji} {getDisplayName(reaction.user)}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div style={{ marginTop: 6 }}>
+              {!message.deletedForEveryone && (
+                <button onClick={() => setReplyTo(message)}>Reply</button>
+              )}
+
+              {!message.deletedForEveryone &&
+                reactionOptions.map((emoji) => (
+                  <button
+                    key={`${message._id}-${emoji}`}
+                    onClick={() => handleToggleReaction(message._id, emoji)}
+                    style={{ marginLeft: 4 }}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+
+              {getId(message.sender) === currentUser?._id &&
+                !message.deletedForEveryone && (
+                  <button
+                    onClick={() => handleStartEdit(message)}
+                    style={{ marginLeft: 4 }}
+                  >
+                    Edit
+                  </button>
+                )}
+
+              <button
+                onClick={() => handleDeleteForMe(message._id)}
+                style={{ marginLeft: 4 }}
+              >
+                Delete Me
+              </button>
+
+              {getId(message.sender) === currentUser?._id &&
+                !message.deletedForEveryone && (
+                  <button
+                    onClick={() => handleDeleteForEveryone(message._id)}
+                    style={{ marginLeft: 4 }}
+                  >
+                    Delete Everyone
+                  </button>
+                )}
+            </div>
+          </li>
         ))}
       </ul>
     </main>

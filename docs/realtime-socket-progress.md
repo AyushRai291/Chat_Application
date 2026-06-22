@@ -2,7 +2,7 @@
 
 Date: 2026-06-22
 
-Status: Socket setup, realtime message receive, presence base, aur typing indicator working layer ready hai.
+Status: Socket setup, realtime message receive, presence base, typing indicator, receipts, aur message actions working layer ready hai.
 
 ## Aaj Kya Kaam Hua
 
@@ -25,6 +25,17 @@ Status: Socket setup, realtime message receive, presence base, aur typing indica
 - Typing events conversation membership verify karne ke baad hi emit hote hain.
 - Client message input type karte waqt typing start bhejta hai aur pause/send/disconnect par stop bhejta hai.
 - Direct conversation testing ke liye client me user search + chat button add hua.
+- Delivered/read receipts add hue.
+- Online receiver ke liye new message auto-delivered mark hota hai.
+- Socket connect par pending messages delivered mark hote hain.
+- Current conversation read mark karne par `readBy` update hota hai aur sender ko realtime receipt milta hai.
+- Client message list me Sent/Delivered/Read label dikh raha hai.
+- Message edit endpoint add hua.
+- Delete for me endpoint add hua.
+- Delete for everyone endpoint add hua.
+- Emoji reaction toggle endpoint add hua.
+- Reply-to-message UI add hua; backend reply support pehle se send flow me tha.
+- Message action socket events add hue: `message:updated`, `message:deleted-for-me`, `message:deleted-for-everyone`, `message:reaction-updated`.
 
 ## Files Touched
 
@@ -43,6 +54,8 @@ Status: Socket setup, realtime message receive, presence base, aur typing indica
   - Presence events: `presence:online-users` aur `presence:update`.
   - Typing events: `typing:start` aur `typing:stop`.
   - Typing events ke liye conversation membership check.
+  - Receipt events: `receipt:delivered` aur `receipt:read`.
+  - `messages:read` event se conversation ke unread messages read mark hote hain.
 
 - `server/src/models/User.js`
   - `isOnline` field add kiya.
@@ -51,6 +64,15 @@ Status: Socket setup, realtime message receive, presence base, aur typing indica
 - `server/src/controllers/message.controller.js`
   - `getIO()` import add kiya.
   - Message save hone ke baad participants ko `message:new` event emit kiya.
+  - Online recipients ke liye initial `deliveredTo` aur message `status` calculate kiya.
+  - Message edit/delete/reaction controllers add kiye.
+  - Message action updates conversation participants ko realtime emit hote hain.
+
+- `server/src/routes/message.routes.js`
+  - `PATCH /api/messages/:messageId`
+  - `DELETE /api/messages/:messageId/for-me`
+  - `DELETE /api/messages/:messageId/for-everyone`
+  - `POST /api/messages/:messageId/reactions`
 
 ### Client
 
@@ -74,6 +96,9 @@ Status: Socket setup, realtime message receive, presence base, aur typing indica
   - Last presence updates readable date/time ke saath show ho rahe hain.
   - User search aur direct conversation create test controls.
   - Typing indicator display.
+  - Message receipts UI: Sent/Delivered/Read.
+  - `Mark Conversation Read` test control.
+  - Reply, edit, delete for me, delete for everyone, aur emoji reaction test controls.
 
 ## Test Flow
 
@@ -106,7 +131,9 @@ Steps:
 5. `Ping` click karo.
 6. Message type karke `Send` click karo.
 7. Typing indicator test ke liye second browser/tab me doosre user se same conversation open karo.
-8. `Disconnect` click karke offline + last seen test karo.
+8. Receiver side par `Mark Conversation Read` click karo.
+9. Message row ke action buttons se reply/edit/delete/reaction test karo.
+10. `Disconnect` click karke offline + last seen test karo.
 
 Expected result:
 
@@ -117,6 +144,13 @@ Expected result:
 - Disconnect ke baad user offline update aur readable last seen dikhna chahiye.
 - Jab doosra participant same conversation me type kare, UI me `<name> is typing...` dikhna chahiye.
 - Typing rukne/send/disconnect par typing indicator clear hona chahiye.
+- Sender side message status `Sent` se `Delivered` ya `Read` me update hona chahiye.
+- Receiver side read mark karne par sender ko realtime `Read` status dikhna chahiye.
+- Edit karne par dono users ko edited text aur `(edited)` dikhna chahiye.
+- Delete for me karne par sirf current user ki list se message remove hona chahiye.
+- Delete for everyone karne par dono users ko `This message was deleted` dikhna chahiye.
+- Reaction toggle karne par dono users ko updated reaction list dikhni chahiye.
+- Reply send karne par message ke upar reply preview dikhna chahiye.
 
 ## Important Learning Notes
 
@@ -134,6 +168,13 @@ Expected result:
 - User tabhi offline mark hota hai jab uske saare active sockets disconnect ho jaate hain.
 - Typing indicator database me save nahi hota, kyunki ye short-lived realtime state hai.
 - Server typing event emit karne se pehle check karta hai ki sender conversation ka participant hai.
+- Delivery/read receipts database me save hote hain:
+  - `deliveredTo` per-user delivery state track karta hai.
+  - `readBy` per-user read state track karta hai.
+  - `status` direct chat ke liye simple Sent/Delivered/Read label deta hai.
+- Delete for me user-specific hai aur `deletedFor` array me save hota hai.
+- Delete for everyone shared state hai aur `deletedForEveryone` true karta hai.
+- Reactions one-reaction-per-user toggle model use karti hain.
 
 ## Current Known Cleanup
 
@@ -145,20 +186,20 @@ Expected result:
 Current feature layer:
 
 ```txt
-Typing indicator
+Message edit/delete/reactions/reply
 ```
 
 Done:
 
-1. `typing:start` event add karna.
-2. `typing:stop` event add karna.
-3. Conversation membership validation add karna.
-4. Client input typing debounce add karna.
-5. Typing indicator UI add karna.
-6. Direct conversation test controls add karna.
+1. Message edit add karna.
+2. Delete for me add karna.
+3. Delete for everyone add karna.
+4. Emoji reaction toggle add karna.
+5. Reply UI add karna.
+6. Message action socket events add karna.
 
 Next feature layer:
 
 ```txt
-Delivered/read receipts
+Uploads
 ```

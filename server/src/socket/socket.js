@@ -2,6 +2,7 @@ import { Server } from "socket.io";
 import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
 import Conversation from "../models/Conversation.js";
+import Message from "../models/Message.js";
 import User from "../models/User.js";
 
 const CLIENT_URL = "http://localhost:5173";
@@ -26,6 +27,10 @@ const parseCookies = (cookieHeader = "") => {
 };
 
 const getOnlineUserIds = () => Array.from(onlineUsers.keys());
+
+export const isUserOnline = (userId) => {
+  return onlineUsers.has(userId.toString());
+};
 
 const serializeUser = (user) => ({
   _id: user._id.toString(),
@@ -68,6 +73,46 @@ const buildSocketUser = (user) => ({
   avatar: user.avatar,
 });
 
+const toIdString = (value) => value._id?.toString() || value.toString();
+
+const addUniqueId = (values, nextValue) => {
+  return Array.from(new Set([...values.map(toIdString), nextValue.toString()]));
+};
+
+const getRecipientIds = (conversation, senderId) => {
+  return conversation.participants
+    .map(toIdString)
+    .filter((participantId) => participantId !== senderId.toString());
+};
+
+const getMessageStatus = ({ conversation, senderId, deliveredTo, readBy }) => {
+  const recipientIds = getRecipientIds(conversation, senderId);
+
+  if (recipientIds.length === 0) {
+    return "read";
+  }
+
+  const deliveredIds = new Set(deliveredTo.map(toIdString));
+  const readIds = new Set(readBy.map(toIdString));
+
+  if (recipientIds.every((participantId) => readIds.has(participantId))) {
+    return "read";
+  }
+
+  if (recipientIds.every((participantId) => deliveredIds.has(participantId))) {
+    return "delivered";
+  }
+
+  return "sent";
+};
+
+const buildReceipt = (message) => ({
+  messageId: message._id.toString(),
+  status: message.status,
+  deliveredTo: message.deliveredTo.map(toIdString),
+  readBy: message.readBy.map(toIdString),
+});
+
 const findUserConversation = (conversationId, userId) => {
   if (!mongoose.Types.ObjectId.isValid(conversationId)) {
     return null;
@@ -88,6 +133,109 @@ const emitToOtherParticipants = (conversation, senderId, eventName, payload) => 
     }
 
     ioInstance.to(`user:${receiverId}`).emit(eventName, payload);
+  });
+};
+
+const emitToParticipants = (conversation, eventName, payload) => {
+  conversation.participants.forEach((participantId) => {
+    ioInstance.to(`user:${participantId.toString()}`).emit(eventName, payload);
+  });
+};
+
+const markMessagesDeliveredForUser = async (userId, user) => {
+  const conversations = await Conversation.find({
+    participants: userId,
+  }).select("participants");
+
+  if (conversations.length === 0) {
+    return;
+  }
+
+  const conversationById = new Map(
+    conversations.map((conversation) => [
+      conversation._id.toString(),
+      conversation,
+    ])
+  );
+
+  const messages = await Message.find({
+    conversation: { $in: conversations.map((conversation) => conversation._id) },
+    sender: { $ne: userId },
+    deliveredTo: { $ne: userId },
+    deletedForEveryone: false,
+  }).select("conversation sender status deliveredTo readBy");
+
+  const receiptsByConversation = new Map();
+
+  for (const message of messages) {
+    const conversation = conversationById.get(message.conversation.toString());
+
+    if (!conversation) {
+      continue;
+    }
+
+    message.deliveredTo = addUniqueId(message.deliveredTo, userId);
+    message.status = getMessageStatus({
+      conversation,
+      senderId: message.sender,
+      deliveredTo: message.deliveredTo,
+      readBy: message.readBy,
+    });
+
+    await message.save();
+
+    const conversationId = conversation._id.toString();
+    const currentReceipts = receiptsByConversation.get(conversationId) || [];
+
+    receiptsByConversation.set(conversationId, [
+      ...currentReceipts,
+      buildReceipt(message),
+    ]);
+  }
+
+  receiptsByConversation.forEach((receipts, conversationId) => {
+    const conversation = conversationById.get(conversationId);
+
+    emitToParticipants(conversation, "receipt:delivered", {
+      conversationId,
+      user: buildSocketUser(user),
+      receipts,
+    });
+  });
+};
+
+const markConversationReadForUser = async ({ conversation, userId, user }) => {
+  const messages = await Message.find({
+    conversation: conversation._id,
+    sender: { $ne: userId },
+    readBy: { $ne: userId },
+    deletedForEveryone: false,
+  }).select("conversation sender status deliveredTo readBy");
+
+  if (messages.length === 0) {
+    return;
+  }
+
+  const receipts = [];
+
+  for (const message of messages) {
+    message.deliveredTo = addUniqueId(message.deliveredTo, userId);
+    message.readBy = addUniqueId(message.readBy, userId);
+    message.status = getMessageStatus({
+      conversation,
+      senderId: message.sender,
+      deliveredTo: message.deliveredTo,
+      readBy: message.readBy,
+    });
+
+    await message.save();
+    receipts.push(buildReceipt(message));
+  }
+
+  emitToParticipants(conversation, "receipt:read", {
+    conversationId: conversation._id.toString(),
+    user: buildSocketUser(user),
+    receipts,
   });
 };
 
@@ -211,6 +359,7 @@ export const setupSocket = (httpServer) => {
 
     // Newly connected client ko current online users list bhej dete hain.
     await emitOnlineUsers(socket);
+    await markMessagesDeliveredForUser(userId, socket.user);
 
     console.log(`Socket connected: ${socket.id} user:${userId}`);
 
@@ -247,6 +396,20 @@ export const setupSocket = (httpServer) => {
       emitToOtherParticipants(conversation, userId, "typing:stop", {
         conversationId: conversation._id.toString(),
         user: buildSocketUser(socket.user),
+      });
+    });
+
+    socket.on("messages:read", async ({ conversationId } = {}) => {
+      const conversation = await findUserConversation(conversationId, userId);
+
+      if (!conversation) {
+        return;
+      }
+
+      await markConversationReadForUser({
+        conversation,
+        userId,
+        user: socket.user,
       });
     });
 
