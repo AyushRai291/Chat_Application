@@ -122,7 +122,9 @@ function App() {
     }, 1200);
   };
 
-  const emitMessagesRead = (targetConversationId = conversationIdRef.current) => {
+  const emitMessagesRead = (
+    targetConversationId = conversationIdRef.current,
+  ) => {
     const socket = getSocket();
 
     if (!socket?.connected || !targetConversationId) {
@@ -136,7 +138,7 @@ function App() {
 
   const applyReceiptUpdates = ({ receipts }) => {
     const receiptByMessageId = new Map(
-      receipts.map((receipt) => [receipt.messageId, receipt])
+      receipts.map((receipt) => [receipt.messageId, receipt]),
     );
 
     setMessages((currentMessages) =>
@@ -153,20 +155,33 @@ function App() {
           deliveredTo: receipt.deliveredTo || message.deliveredTo || [],
           readBy: receipt.readBy || message.readBy || [],
         };
-      })
+      }),
     );
   };
 
   const applyMessageUpdate = (updatedMessage) => {
     setMessages((currentMessages) =>
       currentMessages.map((message) =>
-        message._id === updatedMessage._id ? updatedMessage : message
-      )
+        message._id === updatedMessage._id ? updatedMessage : message,
+      ),
     );
   };
 
   // Login ke baad backend JWT ko httpOnly cookie me save karta hai.
   // Client JS cookie read nahi karega, browser automatically bhejega.
+
+  const loadMessages = async (
+    targetConversationId = conversationIdRef.current,
+  ) => {
+    const id = targetConversationId?.trim();
+
+    if (!id) return;
+
+    const { data } = await axios.get(`/api/messages/${id}`);
+
+    setMessages(data.messages || []);
+  };
+
   const handleLogin = async (event) => {
     event.preventDefault();
 
@@ -185,10 +200,15 @@ function App() {
       isSelf: true,
     });
 
-    setConversationId(data.conversation._id);
-    setMessages([]);
+    const id = data.conversation._id;
+
+    setConversationId(id);
     setReplyTo(null);
     setEditingMessage(null);
+    setTypingUsers([]);
+
+    await loadMessages(id);
+
     setStatus("Saved conversation ready.");
   };
 
@@ -208,11 +228,15 @@ function App() {
       receiverId,
     });
 
-    setConversationId(data.conversation._id);
-    setMessages([]);
+    const id = data.conversation._id;
+
+    setConversationId(id);
     setTypingUsers([]);
     setReplyTo(null);
     setEditingMessage(null);
+
+    await loadMessages(id);
+
     setStatus("Direct conversation ready.");
   };
 
@@ -265,13 +289,13 @@ function App() {
       const user = data.user || fallbackUser;
 
       setPresenceUpdates((currentUpdates) =>
-        [{ ...data, user }, ...currentUpdates].slice(0, 5)
+        [{ ...data, user }, ...currentUpdates].slice(0, 5),
       );
 
       setStatus(
         data.isOnline
           ? `${getDisplayName(user)} is online`
-          : `${getDisplayName(user)} went offline`
+          : `${getDisplayName(user)} went offline`,
       );
     });
 
@@ -282,7 +306,7 @@ function App() {
 
       setTypingUsers((currentUsers) => {
         const alreadyTyping = currentUsers.some(
-          (user) => user._id === data.user._id
+          (user) => user._id === data.user._id,
         );
 
         if (alreadyTyping) {
@@ -299,7 +323,7 @@ function App() {
       }
 
       setTypingUsers((currentUsers) =>
-        currentUsers.filter((user) => user._id !== data.user._id)
+        currentUsers.filter((user) => user._id !== data.user._id),
       );
     });
 
@@ -336,7 +360,7 @@ function App() {
       }
 
       setMessages((currentMessages) =>
-        currentMessages.filter((message) => message._id !== data.messageId)
+        currentMessages.filter((message) => message._id !== data.messageId),
       );
       setStatus("Message deleted for you.");
     });
@@ -368,7 +392,7 @@ function App() {
       setMessages((currentMessages) => {
         // Duplicate guard: same message dobara aaye to repeat add nahi hoga.
         const alreadyExists = currentMessages.some(
-          (message) => message._id === data.message._id
+          (message) => message._id === data.message._id,
         );
 
         if (alreadyExists) {
@@ -380,7 +404,7 @@ function App() {
 
       if (data.message.sender?._id) {
         setTypingUsers((currentUsers) =>
-          currentUsers.filter((user) => user._id !== data.message.sender._id)
+          currentUsers.filter((user) => user._id !== data.message.sender._id),
         );
       }
 
@@ -449,14 +473,14 @@ function App() {
   const handleDeleteForMe = async (messageId) => {
     await axios.delete(`/api/messages/${messageId}/for-me`);
     setMessages((currentMessages) =>
-      currentMessages.filter((message) => message._id !== messageId)
+      currentMessages.filter((message) => message._id !== messageId),
     );
     setStatus("Delete for me requested.");
   };
 
   const handleDeleteForEveryone = async (messageId) => {
     const { data } = await axios.delete(
-      `/api/messages/${messageId}/for-everyone`
+      `/api/messages/${messageId}/for-everyone`,
     );
 
     applyMessageUpdate(data.message);
@@ -510,7 +534,7 @@ function App() {
       };
 
       setOnlineUsers((users) =>
-        users.filter((user) => user._id !== currentUser._id)
+        users.filter((user) => user._id !== currentUser._id),
       );
       setPresenceUpdates((currentUpdates) =>
         [
@@ -521,7 +545,7 @@ function App() {
             user: offlineUser,
           },
           ...currentUpdates,
-        ].slice(0, 5)
+        ].slice(0, 5),
       );
     }
 
@@ -535,14 +559,24 @@ function App() {
 
       <form onSubmit={handleLogin}>
         <input
-          style={{ display: "block", width: "100%", marginBottom: 12, padding: 10 }}
+          style={{
+            display: "block",
+            width: "100%",
+            marginBottom: 12,
+            padding: 10,
+          }}
           placeholder="Email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
         />
 
         <input
-          style={{ display: "block", width: "100%", marginBottom: 12, padding: 10 }}
+          style={{
+            display: "block",
+            width: "100%",
+            marginBottom: 12,
+            padding: 10,
+          }}
           placeholder="Password"
           type="password"
           value={password}
@@ -631,7 +665,8 @@ function App() {
 
       {replyTo && (
         <div style={{ marginTop: 12, padding: 8, border: "1px solid #aaa" }}>
-          Replying to {getDisplayName(replyTo.sender)}: {getMessageText(replyTo)}
+          Replying to {getDisplayName(replyTo.sender)}:{" "}
+          {getMessageText(replyTo)}
           <button onClick={() => setReplyTo(null)} style={{ marginLeft: 8 }}>
             Cancel
           </button>

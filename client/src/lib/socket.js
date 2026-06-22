@@ -11,6 +11,7 @@ export const connectSocket = () => {
 
   socket = io(SOCKET_URL, {
     withCredentials: true,
+    transports: ["websocket"],
     autoConnect: true,
   });
 

@@ -163,7 +163,7 @@ const markMessagesDeliveredForUser = async (userId, user) => {
     sender: { $ne: userId },
     deliveredTo: { $ne: userId },
     deletedForEveryone: false,
-  }).select("conversation sender status deliveredTo readBy");
+  }).select("conversation sender status deliveredTo readBy text attachments");
 
   const receiptsByConversation = new Map();
 
@@ -210,7 +210,7 @@ const markConversationReadForUser = async ({ conversation, userId, user }) => {
     sender: { $ne: userId },
     readBy: { $ne: userId },
     deletedForEveryone: false,
-  }).select("conversation sender status deliveredTo readBy");
+  }).select("conversation sender status deliveredTo readBy text attachments");
 
   if (messages.length === 0) {
     return;
