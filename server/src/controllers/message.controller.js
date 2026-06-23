@@ -257,6 +257,44 @@ export const sendMessage = asyncHandler(async (req, res) => {
   });
 });
 
+export const uploadFiles = asyncHandler(async (req, res) => {
+  const { conversationId } = req.body || {};
+
+  if (!isValidObjectId(conversationId)) {
+    return res.status(400).json({
+      message: "Invalid conversation ID",
+    });
+  }
+
+  const conversation = await findUserConversation(conversationId, req.user._id);
+
+  if (!conversation) {
+    return res.status(404).json({
+      message: "Conversation not found",
+    });
+  }
+
+  const files = Array.isArray(req.files) ? req.files : [];
+
+  if (files.length === 0) {
+    return res.status(400).json({
+      message: "At least one file is required",
+    });
+  }
+
+  const attachments = files.map((file) => ({
+    url: `/uploads/${file.filename}`,
+    publicId: file.filename,
+    fileName: file.originalname,
+    fileType: file.mimetype,
+    fileSize: file.size,
+  }));
+
+  res.status(201).json({
+    attachments,
+  });
+});
+
 export const editMessage = asyncHandler(async (req, res) => {
   const { messageId } = req.params;
   const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";

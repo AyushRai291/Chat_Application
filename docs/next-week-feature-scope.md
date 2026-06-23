@@ -25,15 +25,32 @@ ChatApp ko advanced MERN realtime chat app banana hai, but features ko smart ord
 - 3D aurora layer later
 
 ## Correct Build Order
-1. Socket.io setup
-2. Real-time send/receive
-3. Online/offline + last seen
-4. Typing indicator
-5. Delivered/read receipts
-6. Edit/delete/reactions/reply
-7. Uploads
-8. Groups
-9. Frontend polish + AURORA chunks
+1. Socket.io setup - done
+2. Real-time send/receive - done
+3. Online/offline + last seen - done
+4. Typing indicator - done
+5. Delivered/read receipts - done
+6. Edit/delete/reactions/reply - done
+7. Uploads - done
+8. Groups - done
+9. Frontend polish + AURORA chunks - later
+
+## Current Remaining Scope
+- Search
+- Command palette
+- Notifications
+- Premium AURORA frontend
+- 3D aurora layer later
+
+## Extra Advanced Ideas To Consider
+- Cloudinary/S3 uploads for production storage
+- Image thumbnails and compression
+- Voice notes
+- Link previews
+- Pinned messages
+- Mute/archive conversations
+- Block/report user safety controls
+- Full-text message search with MongoDB indexes
 
 ## Working Rules
 - Heavy work next week, but changes must stay structured and reviewable.

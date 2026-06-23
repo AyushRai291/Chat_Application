@@ -26,6 +26,10 @@ export const errorHandler = (err, req, res, next) => {
     message = `${duplicateField} already exists`;
   }
 
+  if (err.name === "MulterError" || err.message === "Unsupported file type") {
+    statusCode = 400;
+  }
+
   res.status(statusCode).json({
     success: false,
     message,

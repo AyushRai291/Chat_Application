@@ -47,19 +47,50 @@ const getMessageText = (message) => {
   return message.text;
 };
 
+const getAttachmentUrl = (attachment) => {
+  if (attachment.url.startsWith("http")) {
+    return attachment.url;
+  }
+
+  return `${axios.defaults.baseURL}${attachment.url}`;
+};
+
+const isImageAttachment = (attachment) => {
+  return attachment.fileType?.startsWith("image/");
+};
+
+const formatFileSize = (size = 0) => {
+  if (size < 1024) {
+    return `${size} B`;
+  }
+
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+};
+
 function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [currentUser, setCurrentUser] = useState(null);
   const [userSearch, setUserSearch] = useState("");
   const [foundUsers, setFoundUsers] = useState([]);
+  const [groupName, setGroupName] = useState("");
+  const [groupParticipantIds, setGroupParticipantIds] = useState("");
+  const [groupAddUserId, setGroupAddUserId] = useState("");
+  const [groupRename, setGroupRename] = useState("");
 
   const [conversationId, setConversationId] = useState("");
+  const [currentConversation, setCurrentConversation] = useState(null);
   const [text, setText] = useState("");
   const [messages, setMessages] = useState([]);
   const [replyTo, setReplyTo] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
   const [editText, setEditText] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [pendingAttachments, setPendingAttachments] = useState([]);
 
   const [status, setStatus] = useState("Not connected");
   const [onlineUsers, setOnlineUsers] = useState([]);
@@ -70,6 +101,7 @@ function App() {
   const currentUserRef = useRef(null);
   const isTypingRef = useRef(false);
   const typingStopTimerRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     currentUserRef.current = currentUser;
@@ -203,8 +235,11 @@ function App() {
     const id = data.conversation._id;
 
     setConversationId(id);
+    setCurrentConversation(data.conversation);
     setReplyTo(null);
     setEditingMessage(null);
+    setSelectedFiles([]);
+    setPendingAttachments([]);
     setTypingUsers([]);
 
     await loadMessages(id);
@@ -231,13 +266,103 @@ function App() {
     const id = data.conversation._id;
 
     setConversationId(id);
+    setCurrentConversation(data.conversation);
     setTypingUsers([]);
     setReplyTo(null);
     setEditingMessage(null);
+    setSelectedFiles([]);
+    setPendingAttachments([]);
 
     await loadMessages(id);
 
     setStatus("Direct conversation ready.");
+  };
+
+  const handleCreateGroupConversation = async () => {
+    const participantIds = groupParticipantIds
+      .split(",")
+      .map((participantId) => participantId.trim())
+      .filter(Boolean);
+
+    const { data } = await axios.post("/api/conversations/groups", {
+      groupName,
+      participantIds,
+    });
+
+    const id = data.conversation._id;
+
+    setConversationId(id);
+    setCurrentConversation(data.conversation);
+    setMessages([]);
+    setTypingUsers([]);
+    setReplyTo(null);
+    setEditingMessage(null);
+    setGroupRename(data.conversation.groupName);
+
+    await loadMessages(id);
+
+    setStatus("Group conversation ready.");
+  };
+
+  const handleUpdateGroupConversation = async () => {
+    if (!currentConversation?._id) {
+      setStatus("Select a group first.");
+      return;
+    }
+
+    const { data } = await axios.patch(
+      `/api/conversations/${currentConversation._id}/group`,
+      {
+        groupName: groupRename,
+      }
+    );
+
+    setCurrentConversation(data.conversation);
+    setStatus("Group updated.");
+  };
+
+  const handleAddGroupParticipant = async () => {
+    if (!currentConversation?._id || !groupAddUserId.trim()) {
+      setStatus("Group and user ID are required.");
+      return;
+    }
+
+    const { data } = await axios.post(
+      `/api/conversations/${currentConversation._id}/participants`,
+      {
+        participantId: groupAddUserId.trim(),
+      }
+    );
+
+    setCurrentConversation(data.conversation);
+    setGroupAddUserId("");
+    setStatus("Participant added.");
+  };
+
+  const handleRemoveGroupParticipant = async (participantId) => {
+    if (!currentConversation?._id) {
+      return;
+    }
+
+    const { data } = await axios.delete(
+      `/api/conversations/${currentConversation._id}/participants/${participantId}`
+    );
+
+    setCurrentConversation(data.conversation);
+    setStatus("Participant removed.");
+  };
+
+  const handleLeaveGroupConversation = async () => {
+    if (!currentConversation?._id) {
+      return;
+    }
+
+    await axios.post(`/api/conversations/${currentConversation._id}/leave`);
+
+    setCurrentConversation(null);
+    setConversationId("");
+    setMessages([]);
+    setStatus("Left group.");
   };
 
   // Socket connect karte waqt old listeners clear karna important hai.
@@ -259,6 +384,8 @@ function App() {
     socket.off("message:deleted-for-me");
     socket.off("message:deleted-for-everyone");
     socket.off("message:reaction-updated");
+    socket.off("conversation:created");
+    socket.off("conversation:updated");
 
     socket.on("connect", () => {
       setStatus(`Socket connected: ${socket.id}`);
@@ -383,6 +510,20 @@ function App() {
       setStatus("Reaction updated.");
     });
 
+    socket.on("conversation:created", (data) => {
+      if (data.conversation._id === conversationIdRef.current) {
+        setCurrentConversation(data.conversation);
+      }
+    });
+
+    socket.on("conversation:updated", (data) => {
+      if (data.conversation._id === conversationIdRef.current) {
+        setCurrentConversation(data.conversation);
+        setGroupRename(data.conversation.groupName || "");
+        setStatus("Conversation updated.");
+      }
+    });
+
     socket.on("message:new", (data) => {
       // Sirf current conversation ke messages UI me add karenge.
       if (data.conversationId !== conversationIdRef.current) {
@@ -426,8 +567,11 @@ function App() {
   const handleSendMessage = async (event) => {
     event.preventDefault();
 
-    if (!conversationId.trim() || !text.trim()) {
-      setStatus("Conversation ID and message text are required.");
+    if (
+      !conversationId.trim() ||
+      (!text.trim() && pendingAttachments.length === 0)
+    ) {
+      setStatus("Conversation ID and message text or attachment is required.");
       return;
     }
 
@@ -439,11 +583,61 @@ function App() {
     await axios.post("/api/messages", {
       conversationId: conversationId.trim(),
       text: text.trim(),
+      attachments: pendingAttachments,
       replyTo: replyTo?._id,
     });
 
     setText("");
     setReplyTo(null);
+    setSelectedFiles([]);
+    setPendingAttachments([]);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleFileSelection = (event) => {
+    setSelectedFiles(Array.from(event.target.files || []));
+  };
+
+  const handleUploadFiles = async () => {
+    if (!conversationId.trim()) {
+      setStatus("Conversation ID is required before upload.");
+      return;
+    }
+
+    if (selectedFiles.length === 0) {
+      setStatus("Select at least one file first.");
+      return;
+    }
+
+    const formData = new FormData();
+
+    formData.append("conversationId", conversationId.trim());
+    selectedFiles.forEach((file) => {
+      formData.append("files", file);
+    });
+
+    const { data } = await axios.post("/api/messages/upload", formData);
+
+    setPendingAttachments((currentAttachments) => [
+      ...currentAttachments,
+      ...data.attachments,
+    ]);
+    setSelectedFiles([]);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+
+    setStatus(`${data.attachments.length} file(s) uploaded.`);
+  };
+
+  const handleRemovePendingAttachment = (publicId) => {
+    setPendingAttachments((currentAttachments) =>
+      currentAttachments.filter((attachment) => attachment.publicId !== publicId)
+    );
   };
 
   const handleStartEdit = (message) => {
@@ -630,6 +824,87 @@ function App() {
       </section>
 
       <section style={{ marginTop: 20 }}>
+        <h3>Groups</h3>
+
+        <input
+          style={{ display: "block", width: "100%", marginBottom: 8, padding: 10 }}
+          placeholder="Group name"
+          value={groupName}
+          onChange={(event) => setGroupName(event.target.value)}
+        />
+
+        <input
+          style={{ display: "block", width: "100%", marginBottom: 8, padding: 10 }}
+          placeholder="Participant IDs, comma separated"
+          value={groupParticipantIds}
+          onChange={(event) => setGroupParticipantIds(event.target.value)}
+        />
+
+        <button onClick={handleCreateGroupConversation}>Create Group</button>
+
+        {currentConversation?.isGroup && (
+          <div style={{ marginTop: 16, border: "1px solid #aaa", padding: 10 }}>
+            <h4>{currentConversation.groupName}</h4>
+            <p>Group ID: {currentConversation._id}</p>
+            <p>Admin: {getId(currentConversation.admin)}</p>
+
+            <ul>
+              {currentConversation.participants.map((participant) => (
+                <li key={getId(participant)}>
+                  {getDisplayName(participant)} - {getId(participant)}
+                  {getId(currentConversation.admin) === currentUser?._id &&
+                    getId(participant) !== currentUser?._id && (
+                      <button
+                        onClick={() =>
+                          handleRemoveGroupParticipant(getId(participant))
+                        }
+                        style={{ marginLeft: 8 }}
+                      >
+                        Remove
+                      </button>
+                    )}
+                </li>
+              ))}
+            </ul>
+
+            {getId(currentConversation.admin) === currentUser?._id && (
+              <>
+                <input
+                  style={{ width: "70%", padding: 10 }}
+                  placeholder="Rename group"
+                  value={groupRename}
+                  onChange={(event) => setGroupRename(event.target.value)}
+                />
+
+                <button
+                  onClick={handleUpdateGroupConversation}
+                  style={{ width: "30%", padding: 10 }}
+                >
+                  Rename
+                </button>
+
+                <input
+                  style={{ display: "block", width: "100%", marginTop: 8, padding: 10 }}
+                  placeholder="User ID to add"
+                  value={groupAddUserId}
+                  onChange={(event) => setGroupAddUserId(event.target.value)}
+                />
+
+                <button onClick={handleAddGroupParticipant}>Add Member</button>
+              </>
+            )}
+
+            <button
+              onClick={handleLeaveGroupConversation}
+              style={{ marginLeft: 8 }}
+            >
+              Leave Group
+            </button>
+          </div>
+        )}
+      </section>
+
+      <section style={{ marginTop: 20 }}>
         <h3>Presence</h3>
         <p>Online users: {onlineUsers.length}</p>
 
@@ -671,6 +946,37 @@ function App() {
             Cancel
           </button>
         </div>
+      )}
+
+      <div style={{ marginTop: 12 }}>
+        <input
+          ref={fileInputRef}
+          multiple
+          type="file"
+          onChange={handleFileSelection}
+        />
+
+        <button onClick={handleUploadFiles} style={{ marginLeft: 8 }}>
+          Upload
+        </button>
+      </div>
+
+      {pendingAttachments.length > 0 && (
+        <ul>
+          {pendingAttachments.map((attachment) => (
+            <li key={attachment.publicId}>
+              {attachment.fileName} ({formatFileSize(attachment.fileSize)})
+              <button
+                onClick={() =>
+                  handleRemovePendingAttachment(attachment.publicId)
+                }
+                style={{ marginLeft: 8 }}
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
 
       <form onSubmit={handleSendMessage} style={{ marginTop: 12 }}>
@@ -741,6 +1047,31 @@ function App() {
               {getMessageText(message)}
               {message.isEdited ? " (edited)" : ""}
             </div>
+
+            {!message.deletedForEveryone && message.attachments?.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                {message.attachments.map((attachment) => (
+                  <div key={attachment.publicId || attachment.url}>
+                    {isImageAttachment(attachment) ? (
+                      <img
+                        alt={attachment.fileName}
+                        src={getAttachmentUrl(attachment)}
+                        style={{ maxWidth: 220, display: "block" }}
+                      />
+                    ) : (
+                      <a
+                        href={getAttachmentUrl(attachment)}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        {attachment.fileName}
+                      </a>
+                    )}
+                    <small> {formatFileSize(attachment.fileSize)}</small>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <small>
               {getDisplayName(message.sender)} -{" "}

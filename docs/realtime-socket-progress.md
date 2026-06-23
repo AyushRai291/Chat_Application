@@ -2,7 +2,7 @@
 
 Date: 2026-06-22
 
-Status: Socket setup, realtime message receive, presence base, typing indicator, receipts, aur message actions working layer ready hai.
+Status: Socket setup, realtime message receive, presence base, typing indicator, receipts, message actions, uploads, aur groups/admin controls working layer ready hai.
 
 ## Aaj Kya Kaam Hua
 
@@ -36,6 +36,15 @@ Status: Socket setup, realtime message receive, presence base, typing indicator,
 - Emoji reaction toggle endpoint add hua.
 - Reply-to-message UI add hua; backend reply support pehle se send flow me tha.
 - Message action socket events add hue: `message:updated`, `message:deleted-for-me`, `message:deleted-for-everyone`, `message:reaction-updated`.
+- Image/file upload layer add hua.
+- Local upload storage `server/uploads` use ho raha hai.
+- `/uploads/...` static serving add hua.
+- Upload API attachments metadata return karti hai, phir message send me attachments attach hote hain.
+- Client me file picker, upload button, pending attachments preview, image preview, aur file download links add hue.
+- Group chat layer add hua.
+- Admin controls add hue: rename group, add member, remove member.
+- Leave group flow add hua.
+- Group conversation updates realtime `conversation:created` / `conversation:updated` events se sync hote hain.
 
 ## Files Touched
 
@@ -57,6 +66,12 @@ Status: Socket setup, realtime message receive, presence base, typing indicator,
   - Receipt events: `receipt:delivered` aur `receipt:read`.
   - `messages:read` event se conversation ke unread messages read mark hote hain.
 
+- `server/src/middlewares/upload.middleware.js`
+  - Multer local disk storage setup.
+  - File type allowlist.
+  - 10MB per-file limit.
+  - Maximum 5 files per upload.
+
 - `server/src/models/User.js`
   - `isOnline` field add kiya.
   - `lastSeen` field add kiya.
@@ -67,8 +82,24 @@ Status: Socket setup, realtime message receive, presence base, typing indicator,
   - Online recipients ke liye initial `deliveredTo` aur message `status` calculate kiya.
   - Message edit/delete/reaction controllers add kiye.
   - Message action updates conversation participants ko realtime emit hote hain.
+  - Upload controller attachments metadata return karta hai.
+
+- `server/src/controllers/conversation.controller.js`
+  - Group create controller.
+  - Group update/rename controller.
+  - Add group participant controller.
+  - Remove group participant controller.
+  - Leave group controller.
+
+- `server/src/routes/conversation.routes.js`
+  - `POST /api/conversations/groups`
+  - `PATCH /api/conversations/:conversationId/group`
+  - `POST /api/conversations/:conversationId/participants`
+  - `DELETE /api/conversations/:conversationId/participants/:participantId`
+  - `POST /api/conversations/:conversationId/leave`
 
 - `server/src/routes/message.routes.js`
+  - `POST /api/messages/upload`
   - `PATCH /api/messages/:messageId`
   - `DELETE /api/messages/:messageId/for-me`
   - `DELETE /api/messages/:messageId/for-everyone`
@@ -99,6 +130,11 @@ Status: Socket setup, realtime message receive, presence base, typing indicator,
   - Message receipts UI: Sent/Delivered/Read.
   - `Mark Conversation Read` test control.
   - Reply, edit, delete for me, delete for everyone, aur emoji reaction test controls.
+  - Upload controls aur attachment rendering.
+  - Group create/admin/member management controls.
+
+- `server/package.json`
+  - `multer` dependency add hui.
 
 ## Test Flow
 
@@ -133,7 +169,10 @@ Steps:
 7. Typing indicator test ke liye second browser/tab me doosre user se same conversation open karo.
 8. Receiver side par `Mark Conversation Read` click karo.
 9. Message row ke action buttons se reply/edit/delete/reaction test karo.
-10. `Disconnect` click karke offline + last seen test karo.
+10. File select karo, `Upload` click karo, phir `Send` click karo.
+11. Group create karo with comma-separated participant IDs.
+12. Admin user se rename/add/remove controls test karo.
+13. `Disconnect` click karke offline + last seen test karo.
 
 Expected result:
 
@@ -151,6 +190,10 @@ Expected result:
 - Delete for everyone karne par dono users ko `This message was deleted` dikhna chahiye.
 - Reaction toggle karne par dono users ko updated reaction list dikhni chahiye.
 - Reply send karne par message ke upar reply preview dikhna chahiye.
+- Image upload karne par image inline preview me dikhni chahiye.
+- Non-image file upload karne par clickable download/open link dikhna chahiye.
+- Group create karne par group ID current conversation ban jana chahiye.
+- Admin rename/add/remove actions realtime group details update karne chahiye.
 
 ## Important Learning Notes
 
@@ -175,6 +218,8 @@ Expected result:
 - Delete for me user-specific hai aur `deletedFor` array me save hota hai.
 - Delete for everyone shared state hai aur `deletedForEveryone` true karta hai.
 - Reactions one-reaction-per-user toggle model use karti hain.
+- Uploads abhi local disk storage use karte hain. Production phase me Cloudinary/S3 storage swap karna better rahega.
+- Group admin controls sirf current admin ko allowed hain.
 
 ## Current Known Cleanup
 
@@ -186,20 +231,31 @@ Expected result:
 Current feature layer:
 
 ```txt
-Message edit/delete/reactions/reply
+Group chat + admin controls
 ```
 
 Done:
 
-1. Message edit add karna.
-2. Delete for me add karna.
-3. Delete for everyone add karna.
-4. Emoji reaction toggle add karna.
-5. Reply UI add karna.
-6. Message action socket events add karna.
+1. Group create add karna.
+2. Group rename add karna.
+3. Add participant add karna.
+4. Remove participant add karna.
+5. Leave group add karna.
+6. Group admin UI controls add karna.
 
 Next feature layer:
 
 ```txt
-Uploads
+Search + command palette
 ```
+
+## Extra Advanced Ideas
+
+- Cloudinary/S3 upload provider with signed uploads.
+- Image compression and thumbnail generation.
+- Voice notes.
+- Link previews.
+- Message pinning.
+- Conversation mute/archive.
+- Block/report user safety controls.
+- Full-text message search with MongoDB text indexes.
