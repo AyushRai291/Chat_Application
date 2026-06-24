@@ -59,6 +59,10 @@ const messageSchema = new mongoose.Schema(
       maxlength: 5000,
       default: "",
     },
+    safeHtml: {
+      type: String,
+      default: "",
+    },
     attachments: {
       type: [attachmentSchema],
       default: [],
@@ -121,6 +125,7 @@ messageSchema.pre("validate", function () {
 
 messageSchema.index({ conversation: 1, createdAt: 1 });
 messageSchema.index({ sender: 1 });
+messageSchema.index({ text: "text", "attachments.fileName": "text" });
 
 const Message = mongoose.model("Message", messageSchema);
 

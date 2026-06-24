@@ -26,8 +26,23 @@ export const errorHandler = (err, req, res, next) => {
     message = `${duplicateField} already exists`;
   }
 
-  if (err.name === "MulterError" || err.message === "Unsupported file type") {
+  if (err.name === "MulterError") {
     statusCode = 400;
+
+    if (err.code === "LIMIT_FILE_COUNT") {
+      message = "Maximum 5 files allowed.";
+    }
+
+    if (err.code === "LIMIT_FILE_SIZE") {
+      statusCode = 413;
+      message = "File size cannot exceed 10MB.";
+    }
+  }
+
+  if (err.message === "Unsupported file type") {
+    statusCode = 400;
+    message =
+      "Unsupported file type. Allowed: JPG, PNG, WEBP, GIF, PDF, TXT, ZIP, DOC, DOCX.";
   }
 
   res.status(statusCode).json({

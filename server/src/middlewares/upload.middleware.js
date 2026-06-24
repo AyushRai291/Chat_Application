@@ -9,10 +9,10 @@ const __dirname = path.dirname(__filename);
 
 export const uploadsDir = path.resolve(__dirname, "../../uploads");
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
-const MAX_FILES = 5;
+export const MAX_FILE_SIZE = 10 * 1024 * 1024;
+export const MAX_FILES = 5;
 
-const allowedMimeTypes = new Set([
+export const allowedMimeTypes = new Set([
   "image/jpeg",
   "image/png",
   "image/webp",

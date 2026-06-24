@@ -47,6 +47,26 @@ const getMessageText = (message) => {
   return message.text;
 };
 
+const getSearchPreview = (message) => {
+  const messageText = getMessageText(message);
+
+  if (messageText) {
+    return messageText;
+  }
+
+  const firstAttachment = message.attachments?.[0];
+
+  if (firstAttachment) {
+    return `Attachment: ${firstAttachment.fileName}`;
+  }
+
+  return "No preview";
+};
+
+const getNotificationBody = (notification) => {
+  return notification.body || notification.title || "New notification";
+};
+
 const getConversationTitle = (conversation, currentUserId) => {
   if (!conversation) {
     return "Unknown conversation";
@@ -117,6 +137,8 @@ function App() {
   const [editText, setEditText] = useState("");
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [pendingAttachments, setPendingAttachments] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
 
   const [status, setStatus] = useState("Not connected");
   const [onlineUsers, setOnlineUsers] = useState([]);
@@ -244,6 +266,76 @@ function App() {
     );
   };
 
+  const applyNotificationUpdate = (updatedNotification) => {
+    setNotifications((currentNotifications) =>
+      currentNotifications.map((notification) =>
+        notification._id === updatedNotification._id
+          ? updatedNotification
+          : notification,
+      ),
+    );
+  };
+
+  const handleLoadNotifications = async () => {
+    const { data } = await axios.get("/api/notifications", {
+      params: {
+        limit: 20,
+      },
+    });
+
+    setNotifications(data.notifications || []);
+    setUnreadNotificationCount(data.unreadCount || 0);
+    setStatus(`Loaded ${(data.notifications || []).length} notification(s).`);
+  };
+
+  const handleMarkNotificationRead = async (notificationId) => {
+    const { data } = await axios.patch(
+      `/api/notifications/${notificationId}/read`,
+    );
+
+    applyNotificationUpdate(data.notification);
+    setUnreadNotificationCount(data.unreadCount || 0);
+    setStatus("Notification marked as read.");
+
+    return data.notification;
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    const { data } = await axios.patch("/api/notifications/read-all");
+
+    setNotifications((currentNotifications) =>
+      currentNotifications.map((notification) => ({
+        ...notification,
+        isRead: true,
+        readAt: notification.readAt || new Date().toISOString(),
+      })),
+    );
+    setUnreadNotificationCount(data.unreadCount || 0);
+    setStatus("All notifications marked as read.");
+  };
+
+  const handleOpenNotification = async (notification) => {
+    const nextNotification = notification.isRead
+      ? notification
+      : await handleMarkNotificationRead(notification._id);
+    const targetConversation = nextNotification?.conversation;
+    const targetConversationId = getId(targetConversation);
+
+    if (!targetConversationId) {
+      return;
+    }
+
+    setConversationId(targetConversationId);
+    setCurrentConversation(targetConversation);
+    setReplyTo(null);
+    setEditingMessage(null);
+    setTypingUsers([]);
+
+    await loadMessages(targetConversationId);
+
+    setStatus("Notification conversation opened.");
+  };
+
   // Login ke baad backend JWT ko httpOnly cookie me save karta hai.
   // Client JS cookie read nahi karega, browser automatically bhejega.
 
@@ -322,7 +414,11 @@ function App() {
     });
 
     setMessageSearchResults(data.messages || []);
-    setStatus(`Found ${(data.messages || []).length} message(s).`);
+    setStatus(
+      `Found ${(data.messages || []).length} message(s)${
+        data.pagination?.hasMore ? " (latest results shown)." : "."
+      }`,
+    );
   };
 
   const handleOpenSearchResult = async (message) => {
@@ -472,6 +568,7 @@ function App() {
     socket.off("message:reaction-updated");
     socket.off("conversation:created");
     socket.off("conversation:updated");
+    socket.off("notification:new");
 
     socket.on("connect", () => {
       setStatus(`Socket connected: ${socket.id}`);
@@ -610,6 +707,28 @@ function App() {
       }
     });
 
+    socket.on("notification:new", (data) => {
+      const notification = data.notification;
+
+      if (!notification?._id) {
+        return;
+      }
+
+      setNotifications((currentNotifications) => [
+        notification,
+        ...currentNotifications.filter(
+          (currentNotification) =>
+            currentNotification._id !== notification._id,
+        ),
+      ].slice(0, 20));
+
+      if (!notification.isRead) {
+        setUnreadNotificationCount((currentCount) => currentCount + 1);
+      }
+
+      setStatus(notification.title || "New notification received.");
+    });
+
     socket.on("message:new", (data) => {
       // Sirf current conversation ke messages UI me add karenge.
       if (data.conversationId !== conversationIdRef.current) {
@@ -684,7 +803,18 @@ function App() {
   };
 
   const handleFileSelection = (event) => {
-    setSelectedFiles(Array.from(event.target.files || []));
+    const files = Array.from(event.target.files || []);
+
+    setSelectedFiles(files);
+
+    if (files.length > 5) {
+      setStatus("Maximum 5 files allowed.");
+      return;
+    }
+
+    if (files.length > 0) {
+      setStatus(`${files.length} file(s) selected.`);
+    }
   };
 
   const handleUploadFiles = async () => {
@@ -866,6 +996,14 @@ function App() {
       action: () => emitMessagesRead(),
     },
     {
+      label: "Load Notifications",
+      action: handleLoadNotifications,
+    },
+    {
+      label: "Mark All Notifications Read",
+      action: handleMarkAllNotificationsRead,
+    },
+    {
       label: "Create Group",
       action: handleCreateGroupConversation,
     },
@@ -1024,7 +1162,7 @@ function App() {
               <strong>
                 {getConversationTitle(message.conversation, currentUser?._id)}
               </strong>
-              : {getMessageText(message)}
+              : {getSearchPreview(message)}
               <button
                 onClick={() => handleOpenSearchResult(message)}
                 style={{ marginLeft: 8 }}
@@ -1144,6 +1282,51 @@ function App() {
         </ul>
       </section>
 
+      <section style={{ marginTop: 20 }}>
+        <h3>Notifications ({unreadNotificationCount} unread)</h3>
+
+        <button onClick={handleLoadNotifications}>Load Notifications</button>
+        <button
+          onClick={handleMarkAllNotificationsRead}
+          style={{ marginLeft: 8 }}
+        >
+          Mark All Read
+        </button>
+
+        <ul>
+          {notifications.map((notification) => (
+            <li key={notification._id}>
+              <strong>{notification.title}</strong>
+              {notification.isRead ? " - read" : " - unread"}
+              <div>{getNotificationBody(notification)}</div>
+              <small>
+                {notification.createdAt
+                  ? formatLastSeen(notification.createdAt)
+                  : ""}
+              </small>
+              <div style={{ marginTop: 4 }}>
+                {!notification.isRead && (
+                  <button
+                    onClick={() => handleMarkNotificationRead(notification._id)}
+                  >
+                    Mark Read
+                  </button>
+                )}
+
+                {notification.conversation && (
+                  <button
+                    onClick={() => handleOpenNotification(notification)}
+                    style={{ marginLeft: 8 }}
+                  >
+                    Open Chat
+                  </button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+
       <input
         style={{ display: "block", width: "100%", marginTop: 20, padding: 10 }}
         placeholder="Conversation ID"
@@ -1173,6 +1356,16 @@ function App() {
           Upload
         </button>
       </div>
+
+      {selectedFiles.length > 0 && (
+        <ul>
+          {selectedFiles.map((file) => (
+            <li key={`${file.name}-${file.size}-${file.lastModified}`}>
+              {file.name} ({formatFileSize(file.size)})
+            </li>
+          ))}
+        </ul>
+      )}
 
       {pendingAttachments.length > 0 && (
         <ul>

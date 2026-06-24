@@ -10,14 +10,24 @@ import {
   uploadFiles,
 } from "../controllers/message.controller.js";
 import { protectRoute } from "../middlewares/auth.middleware.js";
+import {
+  messageRateLimit,
+  uploadRateLimit,
+} from "../middlewares/rateLimit.middleware.js";
 import { uploadMessageFiles } from "../middlewares/upload.middleware.js";
 
 const router = express.Router();
 
 router.get("/search", protectRoute, searchMessages);
 router.get("/:conversationId", protectRoute, getMessages);
-router.post("/", protectRoute, sendMessage);
-router.post("/upload", protectRoute, uploadMessageFiles, uploadFiles);
+router.post("/", protectRoute, messageRateLimit, sendMessage);
+router.post(
+  "/upload",
+  protectRoute,
+  uploadRateLimit,
+  uploadMessageFiles,
+  uploadFiles
+);
 router.patch("/:messageId", protectRoute, editMessage);
 router.delete("/:messageId/for-me", protectRoute, deleteMessageForMe);
 router.delete(

@@ -121,6 +121,7 @@ const findUserConversation = (conversationId, userId) => {
   return Conversation.findOne({
     _id: conversationId,
     participants: userId,
+    deletedAt: null,
   }).select("participants");
 };
 
@@ -145,6 +146,7 @@ const emitToParticipants = (conversation, eventName, payload) => {
 const markMessagesDeliveredForUser = async (userId, user) => {
   const conversations = await Conversation.find({
     participants: userId,
+    deletedAt: null,
   }).select("participants");
 
   if (conversations.length === 0) {

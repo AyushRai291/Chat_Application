@@ -1,17 +1,34 @@
+import fs from "fs/promises";
+import path from "path";
 import mongoose from "mongoose";
 import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
+import {
+  MAX_FILE_SIZE,
+  MAX_FILES,
+  allowedMimeTypes,
+  uploadsDir,
+} from "../middlewares/upload.middleware.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { hasBlockedDirectParticipant } from "../utils/blocking.js";
 import { getIO, isUserOnline } from "../socket/socket.js";
+import {
+  notifyMessageRecipients,
+  notifyReactionRecipient,
+} from "../utils/notification.js";
+import { buildSafeHtml, normalizeStoredText } from "../utils/sanitizeText.js";
 
 const DEFAULT_MESSAGE_LIMIT = 30;
 const MAX_MESSAGE_LIMIT = 50;
 const MAX_TEXT_LENGTH = 5000;
 const MAX_SEARCH_LIMIT = 25;
+const UPLOAD_URL_PREFIX = "/uploads/";
 
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const toIdString = (value) => value?._id?.toString() || value?.toString();
 
 const normalizeLimit = (limit) => {
   const parsedLimit = Number.parseInt(limit, 10);
@@ -23,13 +40,155 @@ const normalizeLimit = (limit) => {
   return Math.min(Math.max(parsedLimit, 1), MAX_MESSAGE_LIMIT);
 };
 
+const normalizeSearchLimit = (limit) => {
+  const parsedLimit = Number.parseInt(limit, 10);
+
+  if (Number.isNaN(parsedLimit)) {
+    return MAX_SEARCH_LIMIT;
+  }
+
+  return Math.min(Math.max(parsedLimit, 1), MAX_SEARCH_LIMIT);
+};
+
+const createRequestError = (status, message) => {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+};
+
+const getSafeUploadFilePath = (publicId) => {
+  const fileName = typeof publicId === "string" ? publicId.trim() : "";
+  const baseName = path.basename(fileName);
+
+  if (!baseName || baseName !== fileName) {
+    return null;
+  }
+
+  const uploadsRoot = path.resolve(uploadsDir);
+  const filePath = path.resolve(uploadsRoot, baseName);
+
+  if (!filePath.startsWith(`${uploadsRoot}${path.sep}`)) {
+    return null;
+  }
+
+  return filePath;
+};
+
+const normalizeAttachment = async (attachment) => {
+  if (!attachment || typeof attachment !== "object") {
+    throw createRequestError(400, "Invalid attachment metadata");
+  }
+
+  const publicId =
+    typeof attachment.publicId === "string" ? attachment.publicId.trim() : "";
+  const url = typeof attachment.url === "string" ? attachment.url.trim() : "";
+  const fileName =
+    typeof attachment.fileName === "string" ? attachment.fileName.trim() : "";
+  const fileType =
+    typeof attachment.fileType === "string" ? attachment.fileType.trim() : "";
+  const fileSize = Number(attachment.fileSize);
+
+  if (!publicId || !url || !fileName || !fileType) {
+    throw createRequestError(400, "Invalid attachment metadata");
+  }
+
+  if (fileName.length > 255) {
+    throw createRequestError(400, "Attachment file name is too long");
+  }
+
+  if (url !== `${UPLOAD_URL_PREFIX}${publicId}`) {
+    throw createRequestError(400, "Invalid attachment URL");
+  }
+
+  if (!allowedMimeTypes.has(fileType)) {
+    throw createRequestError(400, "Unsupported attachment type");
+  }
+
+  if (!Number.isFinite(fileSize) || fileSize <= 0) {
+    throw createRequestError(400, "Invalid attachment file size");
+  }
+
+  if (fileSize > MAX_FILE_SIZE) {
+    throw createRequestError(413, "File size cannot exceed 10MB.");
+  }
+
+  const filePath = getSafeUploadFilePath(publicId);
+
+  if (!filePath) {
+    throw createRequestError(400, "Invalid attachment file");
+  }
+
+  try {
+    await fs.access(filePath);
+  } catch {
+    throw createRequestError(
+      400,
+      "Uploaded file is no longer available. Please upload it again."
+    );
+  }
+
+  return {
+    url,
+    publicId,
+    fileName,
+    fileType,
+    fileSize,
+  };
+};
+
+const normalizeMessageAttachments = async (attachments) => {
+  if (!Array.isArray(attachments)) {
+    return [];
+  }
+
+  if (attachments.length > MAX_FILES) {
+    throw createRequestError(400, "Maximum 5 files allowed.");
+  }
+
+  const normalizedAttachments = [];
+
+  for (const attachment of attachments) {
+    normalizedAttachments.push(await normalizeAttachment(attachment));
+  }
+
+  return normalizedAttachments;
+};
+
+const deleteAttachmentFiles = async (attachments = []) => {
+  await Promise.all(
+    attachments.map(async (attachment) => {
+      const filePath = getSafeUploadFilePath(attachment.publicId);
+
+      if (!filePath) {
+        return;
+      }
+
+      try {
+        await fs.unlink(filePath);
+      } catch (err) {
+        if (err.code !== "ENOENT") {
+          console.error("Attachment cleanup failed:", err.message);
+        }
+      }
+    })
+  );
+};
+
+const deleteRequestFiles = async (files = []) => {
+  await deleteAttachmentFiles(
+    files.map((file) => ({
+      publicId: file.filename,
+    }))
+  );
+};
+
 const populateMessage = (query) =>
   query
     .populate("sender", "name email avatar")
     .populate("reactions.user", "name email avatar")
     .populate({
       path: "replyTo",
-      select: "text sender createdAt deletedForEveryone",
+      select: "text safeHtml sender createdAt deletedForEveryone",
       populate: {
         path: "sender",
         select: "name email avatar",
@@ -55,7 +214,57 @@ const findUserConversation = (conversationId, userId) =>
   Conversation.findOne({
     _id: conversationId,
     participants: userId,
+    deletedAt: null,
   });
+
+const isConversationAdmin = (conversation, userId) => {
+  const targetUserId = userId.toString();
+  const adminIds = new Set([
+    toIdString(conversation.admin),
+    ...(conversation.admins || []).map(toIdString),
+    ...(conversation.memberRoles || [])
+      .filter((memberRole) =>
+        ["owner", "admin"].includes(memberRole.role)
+      )
+      .map((memberRole) => toIdString(memberRole.user)),
+  ].filter(Boolean));
+
+  return adminIds.has(targetUserId);
+};
+
+const canUserSendToConversation = async ({ conversation, userId }) => {
+  if (conversation.isArchived) {
+    return {
+      allowed: false,
+      status: 400,
+      message: "Archived conversations are read-only",
+    };
+  }
+
+  if (
+    conversation.isGroup &&
+    conversation.settings?.onlyAdminsCanSendMessages &&
+    !isConversationAdmin(conversation, userId)
+  ) {
+    return {
+      allowed: false,
+      status: 403,
+      message: "Only group admins can send messages in this group",
+    };
+  }
+
+  if (await hasBlockedDirectParticipant({ conversation, userId })) {
+    return {
+      allowed: false,
+      status: 403,
+      message: "Message blocked by user privacy settings",
+    };
+  }
+
+  return {
+    allowed: true,
+  };
+};
 
 const emitToConversation = (conversation, eventName, payload) => {
   const io = getIO();
@@ -97,6 +306,15 @@ const getMessageWithConversation = async ({ messageId, userId }) => {
       error: {
         status: 404,
         message: "Message not found",
+      },
+    };
+  }
+
+  if (await hasBlockedDirectParticipant({ conversation, userId })) {
+    return {
+      error: {
+        status: 403,
+        message: "Action blocked by user privacy settings",
       },
     };
   }
@@ -148,6 +366,12 @@ export const getMessages = asyncHandler(async (req, res) => {
     });
   }
 
+  if (await hasBlockedDirectParticipant({ conversation, userId: req.user._id })) {
+    return res.status(403).json({
+      message: "Conversation blocked by user privacy settings",
+    });
+  }
+
   const limit = normalizeLimit(req.query.limit);
   const messageQuery = {
     conversation: conversation._id,
@@ -195,6 +419,7 @@ export const searchMessages = asyncHandler(async (req, res) => {
     });
   }
 
+  const limit = normalizeSearchLimit(req.query.limit);
   const conversationQuery = {
     participants: req.user._id,
   };
@@ -209,42 +434,94 @@ export const searchMessages = asyncHandler(async (req, res) => {
     conversationQuery._id = conversationId;
   }
 
-  const conversations = await Conversation.find(conversationQuery).select("_id");
-  const conversationIds = conversations.map((conversation) => conversation._id);
+  const conversations = await Conversation.find({
+    ...conversationQuery,
+    deletedAt: null,
+  }).select("_id participants isGroup isSelf");
+  const accessibleConversations = [];
+
+  for (const conversation of conversations) {
+    if (!(await hasBlockedDirectParticipant({ conversation, userId: req.user._id }))) {
+      accessibleConversations.push(conversation);
+    }
+  }
+
+  const conversationIds = accessibleConversations.map(
+    (conversation) => conversation._id
+  );
 
   if (conversationIds.length === 0) {
     return res.status(200).json({
       messages: [],
+      pagination: {
+        limit,
+        hasMore: false,
+      },
     });
   }
 
   const escapedSearch = escapeRegex(search);
-  const messages = await populateSearchMessage(
-    Message.find({
-      conversation: { $in: conversationIds },
-      deletedFor: { $ne: req.user._id },
-      deletedForEveryone: false,
-      text: { $regex: escapedSearch, $options: "i" },
-    })
+  const messageQuery = {
+    conversation: { $in: conversationIds },
+    deletedFor: { $ne: req.user._id },
+    deletedForEveryone: false,
+    $or: [
+      { text: { $regex: escapedSearch, $options: "i" } },
+      { "attachments.fileName": { $regex: escapedSearch, $options: "i" } },
+    ],
+  };
+
+  if (req.query.before) {
+    const beforeDate = new Date(req.query.before);
+
+    if (Number.isNaN(beforeDate.getTime())) {
+      return res.status(400).json({
+        message: "Invalid before cursor",
+      });
+    }
+
+    messageQuery.createdAt = { $lt: beforeDate };
+  }
+
+  const searchResults = await populateSearchMessage(
+    Message.find(messageQuery)
       .sort({ createdAt: -1 })
-      .limit(MAX_SEARCH_LIMIT)
+      .limit(limit + 1)
   );
+  const hasMore = searchResults.length > limit;
+  const messages = searchResults.slice(0, limit);
 
   res.status(200).json({
     messages,
+    pagination: {
+      limit,
+      hasMore,
+    },
   });
 });
 
 export const sendMessage = asyncHandler(async (req, res) => {
   const { conversationId, replyTo } = req.body || {};
-  const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
-  const attachments = Array.isArray(req.body?.attachments)
+  const text =
+    typeof req.body?.text === "string"
+      ? normalizeStoredText(req.body.text)
+      : "";
+  const rawAttachments = Array.isArray(req.body?.attachments)
     ? req.body.attachments
     : [];
+  let attachments = [];
 
   if (!isValidObjectId(conversationId)) {
     return res.status(400).json({
       message: "Invalid conversation ID",
+    });
+  }
+
+  try {
+    attachments = await normalizeMessageAttachments(rawAttachments);
+  } catch (err) {
+    return res.status(err.status || 400).json({
+      message: err.message,
     });
   }
 
@@ -265,6 +542,17 @@ export const sendMessage = asyncHandler(async (req, res) => {
   if (!conversation) {
     return res.status(404).json({
       message: "Conversation not found",
+    });
+  }
+
+  const sendAccess = await canUserSendToConversation({
+    conversation,
+    userId: req.user._id,
+  });
+
+  if (!sendAccess.allowed) {
+    return res.status(sendAccess.status).json({
+      message: sendAccess.message,
     });
   }
 
@@ -306,6 +594,7 @@ export const sendMessage = asyncHandler(async (req, res) => {
     conversation: conversation._id,
     sender: req.user._id,
     text,
+    safeHtml: buildSafeHtml(text),
     attachments,
     status,
     readBy,
@@ -324,6 +613,12 @@ export const sendMessage = asyncHandler(async (req, res) => {
     message: populatedMessage.toObject(),
   });
 
+  await notifyMessageRecipients({
+    conversation,
+    sender: req.user,
+    message: populatedMessage,
+  });
+
   res.status(201).json({
     message: populatedMessage,
   });
@@ -331,8 +626,11 @@ export const sendMessage = asyncHandler(async (req, res) => {
 
 export const uploadFiles = asyncHandler(async (req, res) => {
   const { conversationId } = req.body || {};
+  const files = Array.isArray(req.files) ? req.files : [];
 
   if (!isValidObjectId(conversationId)) {
+    await deleteRequestFiles(files);
+
     return res.status(400).json({
       message: "Invalid conversation ID",
     });
@@ -341,12 +639,25 @@ export const uploadFiles = asyncHandler(async (req, res) => {
   const conversation = await findUserConversation(conversationId, req.user._id);
 
   if (!conversation) {
+    await deleteRequestFiles(files);
+
     return res.status(404).json({
       message: "Conversation not found",
     });
   }
 
-  const files = Array.isArray(req.files) ? req.files : [];
+  const uploadAccess = await canUserSendToConversation({
+    conversation,
+    userId: req.user._id,
+  });
+
+  if (!uploadAccess.allowed) {
+    await deleteRequestFiles(files);
+
+    return res.status(uploadAccess.status).json({
+      message: uploadAccess.message,
+    });
+  }
 
   if (files.length === 0) {
     return res.status(400).json({
@@ -369,7 +680,10 @@ export const uploadFiles = asyncHandler(async (req, res) => {
 
 export const editMessage = asyncHandler(async (req, res) => {
   const { messageId } = req.params;
-  const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+  const text =
+    typeof req.body?.text === "string"
+      ? normalizeStoredText(req.body.text)
+      : "";
 
   if (!text) {
     return res.status(400).json({
@@ -409,6 +723,7 @@ export const editMessage = asyncHandler(async (req, res) => {
   }
 
   message.text = text;
+  message.safeHtml = buildSafeHtml(text);
   message.isEdited = true;
   await message.save();
 
@@ -482,10 +797,12 @@ export const deleteMessageForEveryone = asyncHandler(async (req, res) => {
     });
   }
 
+  const attachmentsToDelete = [...message.attachments];
   const updatedMessage = await Message.findByIdAndUpdate(
     message._id,
     {
       text: "",
+      safeHtml: "",
       attachments: [],
       reactions: [],
       deletedForEveryone: true,
@@ -495,6 +812,8 @@ export const deleteMessageForEveryone = asyncHandler(async (req, res) => {
       new: true,
     }
   );
+
+  await deleteAttachmentFiles(attachmentsToDelete);
 
   const populatedMessage = await populateMessage(
     Message.findById(updatedMessage._id)
@@ -549,12 +868,14 @@ export const toggleReaction = asyncHandler(async (req, res) => {
   const existingReaction = message.reactions.find(
     (reaction) => reaction.user.toString() === currentUserId
   );
+  const shouldAddReaction =
+    !existingReaction || existingReaction.emoji !== emoji;
 
   message.reactions = message.reactions.filter(
     (reaction) => reaction.user.toString() !== currentUserId
   );
 
-  if (!existingReaction || existingReaction.emoji !== emoji) {
+  if (shouldAddReaction) {
     message.reactions.push({
       user: req.user._id,
       emoji,
@@ -569,6 +890,16 @@ export const toggleReaction = asyncHandler(async (req, res) => {
     conversationId: conversation._id.toString(),
     message: populatedMessage.toObject(),
   });
+
+  if (shouldAddReaction) {
+    await notifyReactionRecipient({
+      recipient: message.sender,
+      actor: req.user,
+      conversation,
+      message: populatedMessage,
+      emoji,
+    });
+  }
 
   res.status(200).json({
     message: populatedMessage,
