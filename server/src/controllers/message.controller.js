@@ -7,8 +7,11 @@ import { getIO, isUserOnline } from "../socket/socket.js";
 const DEFAULT_MESSAGE_LIMIT = 30;
 const MAX_MESSAGE_LIMIT = 50;
 const MAX_TEXT_LENGTH = 5000;
+const MAX_SEARCH_LIMIT = 25;
 
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const normalizeLimit = (limit) => {
   const parsedLimit = Number.parseInt(limit, 10);
@@ -32,6 +35,21 @@ const populateMessage = (query) =>
         select: "name email avatar",
       },
     });
+
+const populateSearchMessage = (query) =>
+  populateMessage(query).populate({
+    path: "conversation",
+    populate: [
+      {
+        path: "participants",
+        select: "name email avatar isOnline lastSeen",
+      },
+      {
+        path: "admin",
+        select: "name email avatar",
+      },
+    ],
+  });
 
 const findUserConversation = (conversationId, userId) =>
   Conversation.findOne({
@@ -160,6 +178,60 @@ export const getMessages = asyncHandler(async (req, res) => {
       limit,
       hasMore: messages.length === limit,
     },
+  });
+});
+
+export const searchMessages = asyncHandler(async (req, res) => {
+  const search =
+    typeof req.query.search === "string" ? req.query.search.trim() : "";
+  const conversationId =
+    typeof req.query.conversationId === "string"
+      ? req.query.conversationId.trim()
+      : "";
+
+  if (search.length < 2) {
+    return res.status(400).json({
+      message: "Search query must be at least 2 characters",
+    });
+  }
+
+  const conversationQuery = {
+    participants: req.user._id,
+  };
+
+  if (conversationId) {
+    if (!isValidObjectId(conversationId)) {
+      return res.status(400).json({
+        message: "Invalid conversation ID",
+      });
+    }
+
+    conversationQuery._id = conversationId;
+  }
+
+  const conversations = await Conversation.find(conversationQuery).select("_id");
+  const conversationIds = conversations.map((conversation) => conversation._id);
+
+  if (conversationIds.length === 0) {
+    return res.status(200).json({
+      messages: [],
+    });
+  }
+
+  const escapedSearch = escapeRegex(search);
+  const messages = await populateSearchMessage(
+    Message.find({
+      conversation: { $in: conversationIds },
+      deletedFor: { $ne: req.user._id },
+      deletedForEveryone: false,
+      text: { $regex: escapedSearch, $options: "i" },
+    })
+      .sort({ createdAt: -1 })
+      .limit(MAX_SEARCH_LIMIT)
+  );
+
+  res.status(200).json({
+    messages,
   });
 });
 

@@ -2,7 +2,7 @@
 
 Date: 2026-06-22
 
-Status: Socket setup, realtime message receive, presence base, typing indicator, receipts, message actions, uploads, aur groups/admin controls working layer ready hai.
+Status: Socket setup, realtime message receive, presence base, typing indicator, receipts, message actions, uploads, groups/admin controls, search, aur command palette working layer ready hai.
 
 ## Aaj Kya Kaam Hua
 
@@ -45,6 +45,9 @@ Status: Socket setup, realtime message receive, presence base, typing indicator,
 - Admin controls add hue: rename group, add member, remove member.
 - Leave group flow add hua.
 - Group conversation updates realtime `conversation:created` / `conversation:updated` events se sync hote hain.
+- Message search API add hua.
+- Client me current/global message search controls add hue.
+- Command palette add hua with `Ctrl+K` / `Cmd+K` shortcut.
 
 ## Files Touched
 
@@ -83,6 +86,7 @@ Status: Socket setup, realtime message receive, presence base, typing indicator,
   - Message edit/delete/reaction controllers add kiye.
   - Message action updates conversation participants ko realtime emit hote hain.
   - Upload controller attachments metadata return karta hai.
+  - Message search controller add hua.
 
 - `server/src/controllers/conversation.controller.js`
   - Group create controller.
@@ -99,6 +103,7 @@ Status: Socket setup, realtime message receive, presence base, typing indicator,
   - `POST /api/conversations/:conversationId/leave`
 
 - `server/src/routes/message.routes.js`
+  - `GET /api/messages/search`
   - `POST /api/messages/upload`
   - `PATCH /api/messages/:messageId`
   - `DELETE /api/messages/:messageId/for-me`
@@ -132,6 +137,8 @@ Status: Socket setup, realtime message receive, presence base, typing indicator,
   - Reply, edit, delete for me, delete for everyone, aur emoji reaction test controls.
   - Upload controls aur attachment rendering.
   - Group create/admin/member management controls.
+  - Message search UI.
+  - Command palette UI.
 
 - `server/package.json`
   - `multer` dependency add hui.
@@ -172,7 +179,9 @@ Steps:
 10. File select karo, `Upload` click karo, phir `Send` click karo.
 11. Group create karo with comma-separated participant IDs.
 12. Admin user se rename/add/remove controls test karo.
-13. `Disconnect` click karke offline + last seen test karo.
+13. Message search test karo.
+14. `Ctrl+K` / `Cmd+K` command palette test karo.
+15. `Disconnect` click karke offline + last seen test karo.
 
 Expected result:
 
@@ -194,6 +203,8 @@ Expected result:
 - Non-image file upload karne par clickable download/open link dikhna chahiye.
 - Group create karne par group ID current conversation ban jana chahiye.
 - Admin rename/add/remove actions realtime group details update karne chahiye.
+- Message search current conversation ya all conversations me scoped result dikhana chahiye.
+- Command palette se existing actions run hone chahiye.
 
 ## Important Learning Notes
 
@@ -231,22 +242,22 @@ Expected result:
 Current feature layer:
 
 ```txt
-Group chat + admin controls
+Search + command palette
 ```
 
 Done:
 
-1. Group create add karna.
-2. Group rename add karna.
-3. Add participant add karna.
-4. Remove participant add karna.
-5. Leave group add karna.
-6. Group admin UI controls add karna.
+1. Message search endpoint add karna.
+2. Participant-scoped search permissions add karna.
+3. Current/all conversation search UI add karna.
+4. Search result open action add karna.
+5. Command palette add karna.
+6. `Ctrl+K` / `Cmd+K` shortcut add karna.
 
 Next feature layer:
 
 ```txt
-Search + command palette
+Notifications
 ```
 
 ## Extra Advanced Ideas

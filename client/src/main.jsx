@@ -47,6 +47,26 @@ const getMessageText = (message) => {
   return message.text;
 };
 
+const getConversationTitle = (conversation, currentUserId) => {
+  if (!conversation) {
+    return "Unknown conversation";
+  }
+
+  if (conversation.isSelf) {
+    return "Saved Messages";
+  }
+
+  if (conversation.isGroup) {
+    return conversation.groupName || "Group";
+  }
+
+  const otherParticipant = conversation.participants?.find(
+    (participant) => getId(participant) !== currentUserId
+  );
+
+  return getDisplayName(otherParticipant || conversation.participants?.[0]);
+};
+
 const getAttachmentUrl = (attachment) => {
   if (attachment.url.startsWith("http")) {
     return attachment.url;
@@ -77,6 +97,12 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [userSearch, setUserSearch] = useState("");
   const [foundUsers, setFoundUsers] = useState([]);
+  const [messageSearch, setMessageSearch] = useState("");
+  const [searchCurrentConversationOnly, setSearchCurrentConversationOnly] =
+    useState(true);
+  const [messageSearchResults, setMessageSearchResults] = useState([]);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [commandFilter, setCommandFilter] = useState("");
   const [groupName, setGroupName] = useState("");
   const [groupParticipantIds, setGroupParticipantIds] = useState("");
   const [groupAddUserId, setGroupAddUserId] = useState("");
@@ -115,6 +141,25 @@ function App() {
     conversationIdRef.current = conversationId.trim();
     setTypingUsers([]);
   }, [conversationId]);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setCommandPaletteOpen(true);
+      }
+
+      if (event.key === "Escape") {
+        setCommandPaletteOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
 
   const emitTypingStart = (targetConversationId) => {
     const socket = getSocket();
@@ -256,6 +301,47 @@ function App() {
 
     setFoundUsers(data.users);
     setStatus(`Found ${data.users.length} user(s).`);
+  };
+
+  const handleSearchMessages = async () => {
+    if (messageSearch.trim().length < 2) {
+      setStatus("Message search must be at least 2 characters.");
+      return;
+    }
+
+    const params = {
+      search: messageSearch.trim(),
+    };
+
+    if (searchCurrentConversationOnly && conversationId.trim()) {
+      params.conversationId = conversationId.trim();
+    }
+
+    const { data } = await axios.get("/api/messages/search", {
+      params,
+    });
+
+    setMessageSearchResults(data.messages || []);
+    setStatus(`Found ${(data.messages || []).length} message(s).`);
+  };
+
+  const handleOpenSearchResult = async (message) => {
+    const targetConversation = message.conversation;
+    const targetConversationId = getId(targetConversation);
+
+    if (!targetConversationId) {
+      return;
+    }
+
+    setConversationId(targetConversationId);
+    setCurrentConversation(targetConversation);
+    setReplyTo(null);
+    setEditingMessage(null);
+    setTypingUsers([]);
+
+    await loadMessages(targetConversationId);
+
+    setStatus("Search result conversation opened.");
   };
 
   const handleCreateDirectConversation = async (receiverId) => {
@@ -602,36 +688,47 @@ function App() {
   };
 
   const handleUploadFiles = async () => {
+    const files = selectedFiles;
+
     if (!conversationId.trim()) {
       setStatus("Conversation ID is required before upload.");
       return;
     }
 
-    if (selectedFiles.length === 0) {
+    if (files.length === 0) {
       setStatus("Select at least one file first.");
+      return;
+    }
+
+    if (files.length > 5) {
+      setStatus("Maximum 5 files allowed.");
       return;
     }
 
     const formData = new FormData();
 
     formData.append("conversationId", conversationId.trim());
-    selectedFiles.forEach((file) => {
+    files.forEach((file) => {
       formData.append("files", file);
     });
 
-    const { data } = await axios.post("/api/messages/upload", formData);
+    try {
+      const { data } = await axios.post("/api/messages/upload", formData);
 
-    setPendingAttachments((currentAttachments) => [
-      ...currentAttachments,
-      ...data.attachments,
-    ]);
-    setSelectedFiles([]);
+      setPendingAttachments((currentAttachments) => [
+        ...currentAttachments,
+        ...data.attachments,
+      ]);
+      setSelectedFiles([]);
 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+
+      setStatus(`${data.attachments.length} file(s) uploaded.`);
+    } catch (err) {
+      setStatus(err.response?.data?.message || "File upload failed.");
     }
-
-    setStatus(`${data.attachments.length} file(s) uploaded.`);
   };
 
   const handleRemovePendingAttachment = (publicId) => {
@@ -747,9 +844,78 @@ function App() {
     setTypingUsers([]);
   };
 
+  const commands = [
+    {
+      label: "Connect Socket",
+      action: handleConnectSocket,
+    },
+    {
+      label: "Create Saved Conversation",
+      action: handleCreateSavedConversation,
+    },
+    {
+      label: "Search Users",
+      action: handleSearchUsers,
+    },
+    {
+      label: "Search Messages",
+      action: handleSearchMessages,
+    },
+    {
+      label: "Mark Conversation Read",
+      action: () => emitMessagesRead(),
+    },
+    {
+      label: "Create Group",
+      action: handleCreateGroupConversation,
+    },
+    {
+      label: "Disconnect Socket",
+      action: handleDisconnect,
+    },
+  ];
+
+  const filteredCommands = commands.filter((command) =>
+    command.label.toLowerCase().includes(commandFilter.trim().toLowerCase())
+  );
+
+  const handleRunCommand = async (command) => {
+    await command.action();
+    setCommandFilter("");
+    setCommandPaletteOpen(false);
+  };
+
   return (
     <main style={{ maxWidth: 680, margin: "60px auto", fontFamily: "Arial" }}>
       <h1>Socket Test</h1>
+
+      <button onClick={() => setCommandPaletteOpen(true)}>
+        Command Palette
+      </button>
+
+      {commandPaletteOpen && (
+        <section style={{ marginTop: 12, border: "1px solid #333", padding: 10 }}>
+          <input
+            autoFocus
+            style={{ display: "block", width: "100%", padding: 10 }}
+            placeholder="Type a command..."
+            value={commandFilter}
+            onChange={(event) => setCommandFilter(event.target.value)}
+          />
+
+          <ul>
+            {filteredCommands.map((command) => (
+              <li key={command.label}>
+                <button onClick={() => handleRunCommand(command)}>
+                  {command.label}
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          <button onClick={() => setCommandPaletteOpen(false)}>Close</button>
+        </section>
+      )}
 
       <form onSubmit={handleLogin}>
         <input
@@ -811,12 +977,59 @@ function App() {
             <li key={user._id}>
               <strong>{getDisplayName(user)}</strong>
               {user.email ? ` - ${user.email}` : ""}
+              <span> - ID: {user._id}</span>
               {user.isOnline ? " - online" : ""}
               <button
                 onClick={() => handleCreateDirectConversation(user._id)}
                 style={{ marginLeft: 8 }}
               >
                 Chat
+              </button>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section style={{ marginTop: 20 }}>
+        <h3>Message Search</h3>
+
+        <input
+          style={{ width: "70%", padding: 10 }}
+          placeholder="Search messages"
+          value={messageSearch}
+          onChange={(event) => setMessageSearch(event.target.value)}
+        />
+
+        <button
+          onClick={handleSearchMessages}
+          style={{ width: "30%", padding: 10 }}
+        >
+          Search Messages
+        </button>
+
+        <label style={{ display: "block", marginTop: 8 }}>
+          <input
+            checked={searchCurrentConversationOnly}
+            onChange={(event) =>
+              setSearchCurrentConversationOnly(event.target.checked)
+            }
+            type="checkbox"
+          />
+          Current conversation only
+        </label>
+
+        <ul>
+          {messageSearchResults.map((message) => (
+            <li key={message._id}>
+              <strong>
+                {getConversationTitle(message.conversation, currentUser?._id)}
+              </strong>
+              : {getMessageText(message)}
+              <button
+                onClick={() => handleOpenSearchResult(message)}
+                style={{ marginLeft: 8 }}
+              >
+                Open
               </button>
             </li>
           ))}

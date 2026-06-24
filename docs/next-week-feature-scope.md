@@ -36,8 +36,6 @@ ChatApp ko advanced MERN realtime chat app banana hai, but features ko smart ord
 9. Frontend polish + AURORA chunks - later
 
 ## Current Remaining Scope
-- Search
-- Command palette
 - Notifications
 - Premium AURORA frontend
 - 3D aurora layer later

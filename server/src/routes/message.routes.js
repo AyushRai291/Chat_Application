@@ -4,6 +4,7 @@ import {
   deleteMessageForMe,
   editMessage,
   getMessages,
+  searchMessages,
   sendMessage,
   toggleReaction,
   uploadFiles,
@@ -13,6 +14,7 @@ import { uploadMessageFiles } from "../middlewares/upload.middleware.js";
 
 const router = express.Router();
 
+router.get("/search", protectRoute, searchMessages);
 router.get("/:conversationId", protectRoute, getMessages);
 router.post("/", protectRoute, sendMessage);
 router.post("/upload", protectRoute, uploadMessageFiles, uploadFiles);
