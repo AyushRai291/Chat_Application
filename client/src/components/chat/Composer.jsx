@@ -122,6 +122,16 @@ export default function Composer() {
     resizeTextarea();
   }, [resizeTextarea, text]);
 
+  useEffect(() => {
+    if (!replyTarget || !conversationId) return;
+
+    const timer = window.setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [replyTarget, conversationId]);
+
   const handleChange = (event) => {
     const value = event.target.value;
     setText(value);
@@ -139,34 +149,32 @@ export default function Composer() {
   };
 
   const handleSend = async () => {
-  const cleanText = text.trim();
+    const cleanText = text.trim();
 
-  if (!cleanText || sendingMessage || !conversationId) return;
+    if (!cleanText || sendingMessage || !conversationId) return;
 
-  const oldText = text;
-  const oldReplyTarget = replyTarget;
+    const oldText = text;
+    const oldReplyTarget = replyTarget;
 
-  setText("");
-  clearReplyTarget();
-  requestAnimationFrame(resizeTextarea);
+    setText("");
+    clearReplyTarget();
+    requestAnimationFrame(resizeTextarea);
 
-  clearStopTimer();
-  emitStop();
+    clearStopTimer();
+    emitStop();
 
-  const message = await sendMessage({
-    text: cleanText,
-    replyTo: oldReplyTarget?._id || null,
-  });
+    const message = await sendMessage({
+      text: cleanText,
+      replyTo: oldReplyTarget?._id || null,
+    });
 
-  if (!message) {
-    setText(oldText);
-    if (oldReplyTarget) {
-      // reply restore ka direct function nahi hai, isliye sirf text restore hoga
+    if (!message) {
+      setText(oldText);
+      requestAnimationFrame(resizeTextarea);
     }
-  }
 
-  textareaRef.current?.focus();
-};
+    textareaRef.current?.focus();
+  };
 
   const handleSubmit = (event) => {
     event.preventDefault();
@@ -215,6 +223,7 @@ export default function Composer() {
       <form className="aurora-composer__form" onSubmit={handleSubmit}>
         <div className="aurora-composer__box">
           <textarea
+            id="aurora-composer-input"
             ref={textareaRef}
             className="aurora-composer__textarea"
             value={text}
@@ -237,7 +246,9 @@ export default function Composer() {
           </button>
         </div>
 
-        <p className="aurora-composer__hint">Enter to send · Shift + Enter for new line</p>
+        <p className="aurora-composer__hint">
+          Enter to send · Shift + Enter for new line
+        </p>
       </form>
     </div>
   );
