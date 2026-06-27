@@ -68,7 +68,7 @@ function getLastPreview(conversation, currentUserId) {
   let preview = "";
 
   if (lastMessage.deletedForEveryone) preview = "Message deleted";
-  else if (lastMessage.attachments?.length) preview = "\u{1F4CE} Attachment";
+  else if (lastMessage.attachments?.length) preview = "📎 Attachment";
   else if (lastMessage.text) preview = trimPreview(lastMessage.text);
 
   if (!preview) return "";
@@ -117,7 +117,10 @@ export default function ConversationItem({
   const name = getConvName(conversation, currentUserId);
   const avatar = getConvAvatar(conversation, currentUserId);
   const preview = getLastPreview(conversation, currentUserId);
-  const time = formatTime(conversation?.updatedAt);
+  const time =
+    formatTime(conversation?.lastMessage?.createdAt) ||
+    formatTime(conversation?.updatedAt);
+
   const isSelf = Boolean(conversation?.isSelf);
 
   const otherParticipant =
@@ -132,101 +135,30 @@ export default function ConversationItem({
   return (
     <button
       type="button"
+      className="aurora-conv"
+      data-active={isActive ? "true" : undefined}
       onClick={onClick}
       aria-label={`Open conversation with ${name}`}
-      aria-current={isActive ? "true" : undefined}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "12px",
-        padding: "10px 12px",
-        borderRadius: "var(--radius-lg)",
-        background: isActive ? "var(--bg-active)" : "transparent",
-        border: `1px solid ${
-          isActive ? "var(--border-accent)" : "transparent"
-        }`,
-        position: "relative",
-        width: "100%",
-        textAlign: "left",
-        cursor: "pointer",
-        transition: "background 0.12s, border-color 0.12s",
-        boxShadow: isActive
-          ? "inset 3px 0 0 var(--accent-primary), 0 0 12px var(--accent-glow)"
-          : "none",
-      }}
-      onMouseEnter={(e) => {
-        if (!isActive) e.currentTarget.style.background = "var(--bg-hover)";
-      }}
-      onMouseLeave={(e) => {
-        if (!isActive) e.currentTarget.style.background = "transparent";
-      }}
+      aria-current={isActive ? "page" : undefined}
     >
       {isSelf ? (
-        <div
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: "var(--radius-full)",
-            background: "var(--accent-gradient)",
-            flexShrink: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "1.1rem",
-          }}
-        >
+        <div className="aurora-conv__saved" aria-hidden="true">
           🔖
         </div>
       ) : (
         <Avatar name={name} src={avatar} size="md" online={isOnline} />
       )}
 
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "6px",
-          }}
-        >
-          <span
-            style={{
-              fontSize: "0.875rem",
-              fontWeight: 600,
-              color: "var(--text-primary)",
-              overflow: "hidden",
-              whiteSpace: "nowrap",
-              textOverflow: "ellipsis",
-            }}
-          >
-            {name}
-          </span>
+      <div className="aurora-conv__body">
+        <div className="aurora-conv__top">
+          <span className="aurora-conv__name">{name}</span>
 
-          <span
-            style={{
-              fontSize: "0.72rem",
-              color: "var(--text-muted)",
-              whiteSpace: "nowrap",
-              flexShrink: 0,
-            }}
-          >
-            {time}
-          </span>
+          {time && <span className="aurora-conv__time">{time}</span>}
         </div>
 
-        <p
-          style={{
-            fontSize: "0.8rem",
-            color: "var(--text-muted)",
-            marginTop: "2px",
-            overflow: "hidden",
-            whiteSpace: "nowrap",
-            textOverflow: "ellipsis",
-          }}
-        >
-          {preview}
-        </p>
+        <div className="aurora-conv__bottom">
+          <p className="aurora-conv__preview">{preview}</p>
+        </div>
       </div>
     </button>
   );
