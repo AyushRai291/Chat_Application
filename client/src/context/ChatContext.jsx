@@ -36,7 +36,7 @@ const applyOnlineStateToConversation = (conversation, onlineIds) => {
 
 const applyOnlineStateToList = (conversations, onlineIds) =>
   conversations.map((conversation) =>
-    applyOnlineStateToConversation(conversation, onlineIds)
+    applyOnlineStateToConversation(conversation, onlineIds),
   );
 
 export function ChatProvider({ children }) {
@@ -54,7 +54,9 @@ export function ChatProvider({ children }) {
 
   const [socketConnected, setSocketConnected] = useState(false);
   const [onlineUserIds, setOnlineUserIds] = useState(new Set());
-  const [typingUsersByConversation, setTypingUsersByConversation] = useState({});
+  const [typingUsersByConversation, setTypingUsersByConversation] = useState(
+    {},
+  );
 
   const [error, setError] = useState(null);
 
@@ -79,7 +81,7 @@ export function ChatProvider({ children }) {
     setOnlineUserIds(nextOnlineIds);
     setConversations((prev) => applyOnlineStateToList(prev, nextOnlineIds));
     setSelectedConversation((prev) =>
-      prev ? applyOnlineStateToConversation(prev, nextOnlineIds) : prev
+      prev ? applyOnlineStateToConversation(prev, nextOnlineIds) : prev,
     );
   }, []);
 
@@ -89,7 +91,7 @@ export function ChatProvider({ children }) {
     setConversations((prev) => {
       const withPresence = applyOnlineStateToConversation(
         conversation,
-        onlineIdsRef.current
+        onlineIdsRef.current,
       );
 
       const exists = prev.some((item) => getId(item) === getId(withPresence));
@@ -97,13 +99,19 @@ export function ChatProvider({ children }) {
       if (!exists) return [withPresence, ...prev];
 
       const updated = prev.map((item) =>
-        getId(item) === getId(withPresence) ? { ...item, ...withPresence } : item
+        getId(item) === getId(withPresence)
+          ? { ...item, ...withPresence }
+          : item,
       );
 
       if (!moveTop) return updated;
 
-      const target = updated.find((item) => getId(item) === getId(withPresence));
-      const rest = updated.filter((item) => getId(item) !== getId(withPresence));
+      const target = updated.find(
+        (item) => getId(item) === getId(withPresence),
+      );
+      const rest = updated.filter(
+        (item) => getId(item) !== getId(withPresence),
+      );
 
       return target ? [target, ...rest] : updated;
     });
@@ -112,41 +120,44 @@ export function ChatProvider({ children }) {
       getId(prev) === getId(conversation)
         ? applyOnlineStateToConversation(
             { ...prev, ...conversation },
-            onlineIdsRef.current
+            onlineIdsRef.current,
           )
-        : prev
+        : prev,
     );
   }, []);
 
-  const updateConversationLastMessage = useCallback((conversationId, message) => {
-    if (!conversationId || !message?._id) return;
+  const updateConversationLastMessage = useCallback(
+    (conversationId, message) => {
+      if (!conversationId || !message?._id) return;
 
-    const id = getId(conversationId);
+      const id = getId(conversationId);
 
-    setConversations((prev) => {
-      const exists = prev.find((item) => getId(item) === id);
-      if (!exists) return prev;
+      setConversations((prev) => {
+        const exists = prev.find((item) => getId(item) === id);
+        if (!exists) return prev;
 
-      const updatedConversation = {
-        ...exists,
-        lastMessage: message,
-        updatedAt: message.createdAt || exists.updatedAt,
-      };
+        const updatedConversation = {
+          ...exists,
+          lastMessage: message,
+          updatedAt: message.createdAt || exists.updatedAt,
+        };
 
-      const rest = prev.filter((item) => getId(item) !== id);
-      return [updatedConversation, ...rest];
-    });
+        const rest = prev.filter((item) => getId(item) !== id);
+        return [updatedConversation, ...rest];
+      });
 
-    setSelectedConversation((prev) =>
-      getId(prev) === id
-        ? {
-            ...prev,
-            lastMessage: message,
-            updatedAt: message.createdAt || prev.updatedAt,
-          }
-        : prev
-    );
-  }, []);
+      setSelectedConversation((prev) =>
+        getId(prev) === id
+          ? {
+              ...prev,
+              lastMessage: message,
+              updatedAt: message.createdAt || prev.updatedAt,
+            }
+          : prev,
+      );
+    },
+    [],
+  );
 
   const patchMessageEverywhere = useCallback((messageId, updater) => {
     const id = getId(messageId);
@@ -168,18 +179,18 @@ export function ChatProvider({ children }) {
               ...conversation,
               lastMessage: patchMessage(conversation.lastMessage),
             }
-          : conversation
-      )
+          : conversation,
+      ),
     );
 
     setSelectedConversation((prev) =>
       getId(prev?.lastMessage) === id
         ? { ...prev, lastMessage: patchMessage(prev.lastMessage) }
-        : prev
+        : prev,
     );
 
     setReplyTargetState((prev) =>
-      getId(prev) === id ? patchMessage(prev) : prev
+      getId(prev) === id ? patchMessage(prev) : prev,
     );
   }, []);
 
@@ -193,12 +204,12 @@ export function ChatProvider({ children }) {
       prev.map((conversation) =>
         getId(conversation.lastMessage) === id
           ? { ...conversation, lastMessage: null }
-          : conversation
-      )
+          : conversation,
+      ),
     );
 
     setSelectedConversation((prev) =>
-      getId(prev?.lastMessage) === id ? { ...prev, lastMessage: null } : prev
+      getId(prev?.lastMessage) === id ? { ...prev, lastMessage: null } : prev,
     );
 
     setReplyTargetState((prev) => (getId(prev) === id ? null : prev));
@@ -243,7 +254,7 @@ export function ChatProvider({ children }) {
     if (!id) return;
 
     setConversations((prev) =>
-      prev.filter((conversation) => getId(conversation) !== id)
+      prev.filter((conversation) => getId(conversation) !== id),
     );
 
     setSelectedConversation((prev) => (getId(prev) === id ? null : prev));
@@ -317,7 +328,7 @@ export function ChatProvider({ children }) {
         setLoadingMessages(false);
       }
     },
-    [markConversationRead]
+    [markConversationRead],
   );
 
   const selectConversation = useCallback(
@@ -329,7 +340,7 @@ export function ChatProvider({ children }) {
 
       const withPresence = applyOnlineStateToConversation(
         conversation,
-        onlineIdsRef.current
+        onlineIdsRef.current,
       );
 
       setSelectedConversation(withPresence);
@@ -340,7 +351,7 @@ export function ChatProvider({ children }) {
 
       await loadMessages(conversation._id);
     },
-    [loadMessages]
+    [loadMessages],
   );
 
   const createSavedConversation = useCallback(async () => {
@@ -373,7 +384,7 @@ export function ChatProvider({ children }) {
         return null;
       }
     },
-    [selectConversation, upsertConversation]
+    [selectConversation, upsertConversation],
   );
 
   const deleteConversationForMe = useCallback(
@@ -393,7 +404,7 @@ export function ChatProvider({ children }) {
         return null;
       }
     },
-    [removeConversationForCurrentUser]
+    [removeConversationForCurrentUser],
   );
 
   const sendMessage = useCallback(
@@ -430,7 +441,7 @@ export function ChatProvider({ children }) {
         setSendingMessage(false);
       }
     },
-    [updateConversationLastMessage]
+    [updateConversationLastMessage],
   );
 
   const editMessage = useCallback(
@@ -442,7 +453,10 @@ export function ChatProvider({ children }) {
       setError(null);
 
       try {
-        const message = await messageService.updateMessage(messageId, cleanText);
+        const message = await messageService.updateMessage(
+          messageId,
+          cleanText,
+        );
         const nextMessage = message?._id
           ? message
           : { _id: messageId, text: cleanText, isEdited: true };
@@ -458,7 +472,7 @@ export function ChatProvider({ children }) {
         return null;
       }
     },
-    [patchMessageEverywhere]
+    [patchMessageEverywhere],
   );
 
   const deleteMessageForMe = useCallback(
@@ -478,7 +492,7 @@ export function ChatProvider({ children }) {
         return null;
       }
     },
-    [removeMessageForCurrentUser]
+    [removeMessageForCurrentUser],
   );
 
   const deleteMessageForEveryone = useCallback(
@@ -507,7 +521,7 @@ export function ChatProvider({ children }) {
         }));
 
         setReplyTargetState((prev) =>
-          getId(prev) === getId(messageId) ? null : prev
+          getId(prev) === getId(messageId) ? null : prev,
         );
 
         setSelectedMessageIds((prev) => {
@@ -520,11 +534,13 @@ export function ChatProvider({ children }) {
 
         return nextMessage;
       } catch (err) {
-        setError(getErrorMessage(err, "Failed to delete message for everyone."));
+        setError(
+          getErrorMessage(err, "Failed to delete message for everyone."),
+        );
         return null;
       }
     },
-    [patchMessageEverywhere]
+    [patchMessageEverywhere],
   );
 
   const toggleReaction = useCallback(
@@ -550,7 +566,7 @@ export function ChatProvider({ children }) {
         return null;
       }
     },
-    [patchMessageEverywhere]
+    [patchMessageEverywhere],
   );
 
   const deleteSelectedMessagesForMe = useCallback(async () => {
@@ -559,16 +575,21 @@ export function ChatProvider({ children }) {
 
     setError(null);
 
+    const results = await Promise.allSettled(
+      ids.map((id) => messageService.deleteForMe(id)),
+    );
+
     let deletedCount = 0;
 
-    for (const id of ids) {
-      try {
-        await messageService.deleteForMe(id);
-        removeMessageForCurrentUser(id);
+    results.forEach((result, index) => {
+      if (result.status === "fulfilled") {
+        removeMessageForCurrentUser(ids[index]);
         deletedCount++;
-      } catch (err) {
-        setError(getErrorMessage(err, "Failed to delete selected messages."));
       }
+    });
+
+    if (deletedCount !== ids.length) {
+      setError("Some selected messages could not be deleted.");
     }
 
     setSelectedMessageIds(new Set());
@@ -581,16 +602,45 @@ export function ChatProvider({ children }) {
 
     setError(null);
 
+    const results = await Promise.allSettled(
+      ids.map((id) => messageService.deleteForEveryone(id)),
+    );
+
     let deletedCount = 0;
 
-    for (const id of ids) {
-      const deleted = await deleteMessageForEveryone(id);
-      if (deleted) deletedCount++;
+    results.forEach((result, index) => {
+      if (result.status !== "fulfilled") return;
+
+      const id = ids[index];
+      const message = result.value;
+
+      const nextMessage = message?._id
+        ? message
+        : {
+            _id: id,
+            text: "",
+            attachments: [],
+            reactions: [],
+            deletedForEveryone: true,
+            isEdited: false,
+          };
+
+      patchMessageEverywhere(id, (current) => ({
+        ...current,
+        ...nextMessage,
+        deletedForEveryone: true,
+      }));
+
+      deletedCount++;
+    });
+
+    if (deletedCount !== ids.length) {
+      setError("Some selected messages could not be deleted for everyone.");
     }
 
     setSelectedMessageIds(new Set());
     return deletedCount;
-  }, [deleteMessageForEveryone, selectedMessageIds]);
+  }, [patchMessageEverywhere, selectedMessageIds]);
 
   const startTyping = useCallback((conversationId) => {
     const socket = getSocket();
@@ -664,7 +714,7 @@ export function ChatProvider({ children }) {
       }
 
       const exists = conversationsRef.current.some(
-        (item) => getId(item) === getId(conversationId)
+        (item) => getId(item) === getId(conversationId),
       );
 
       if (!exists) {
@@ -714,7 +764,7 @@ export function ChatProvider({ children }) {
       }));
 
       setReplyTargetState((prev) =>
-        getId(prev) === getId(messageId) ? null : prev
+        getId(prev) === getId(messageId) ? null : prev,
       );
     });
 
@@ -763,7 +813,7 @@ export function ChatProvider({ children }) {
 
       if (Array.isArray(data?.receipts)) {
         const receiptMap = new Map(
-          data.receipts.map((receipt) => [getId(receipt.messageId), receipt])
+          data.receipts.map((receipt) => [getId(receipt.messageId), receipt]),
         );
 
         if (getId(selectedConvRef.current) === conversationId) {
@@ -771,7 +821,7 @@ export function ChatProvider({ children }) {
             prev.map((message) => {
               const receipt = receiptMap.get(getId(message));
               return receipt ? patchWithReceipt(message, receipt) : message;
-            })
+            }),
           );
         }
 
@@ -790,11 +840,11 @@ export function ChatProvider({ children }) {
                   ...conversation,
                   lastMessage: patchWithReceipt(
                     conversation.lastMessage,
-                    receipt
+                    receipt,
                   ),
                 }
               : conversation;
-          })
+          }),
         );
 
         setSelectedConversation((prev) => {
@@ -820,8 +870,8 @@ export function ChatProvider({ children }) {
           prev.map((message) =>
             getId(message) === messageId
               ? patchWithReceipt(message, data)
-              : message
-          )
+              : message,
+          ),
         );
       }
 
@@ -833,8 +883,8 @@ export function ChatProvider({ children }) {
                 ...conversation,
                 lastMessage: patchWithReceipt(conversation.lastMessage, data),
               }
-            : conversation
-        )
+            : conversation,
+        ),
       );
 
       setSelectedConversation((prev) =>
@@ -843,7 +893,7 @@ export function ChatProvider({ children }) {
               ...prev,
               lastMessage: patchWithReceipt(prev.lastMessage, data),
             }
-          : prev
+          : prev,
       );
     };
 
@@ -901,7 +951,7 @@ export function ChatProvider({ children }) {
       setTypingUsersByConversation((prev) => ({
         ...prev,
         [conversationId]: (prev[conversationId] || []).filter(
-          (item) => getId(item) !== getId(typingUser)
+          (item) => getId(item) !== getId(typingUser),
         ),
       }));
     });
