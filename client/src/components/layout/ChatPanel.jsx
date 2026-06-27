@@ -151,7 +151,7 @@ export default function ChatPanel({ onInfoToggle, showInfoPanel }) {
 
   if (!selectedConversation) {
     return (
-      <main style={s.emptyWrap}>
+      <main className="aurora-chat-empty">
         <EmptyState
           icon="✦"
           title="Welcome to Aurora"
@@ -256,8 +256,8 @@ export default function ChatPanel({ onInfoToggle, showInfoPanel }) {
   };
 
   return (
-    <main aria-label="Chat area" style={s.wrap}>
-      <header style={s.header}>
+    <main aria-label="Chat area" className="aurora-chat">
+      <header className="aurora-chat__header">
         <Avatar
           name={convName}
           src={convAvatar}
@@ -265,36 +265,19 @@ export default function ChatPanel({ onInfoToggle, showInfoPanel }) {
           online={selectedConversation.isSelf ? undefined : isOnline}
         />
 
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p
-            style={{
-              fontWeight: 600,
-              fontSize: "0.95rem",
-              color: "var(--text-primary)",
-              overflow: "hidden",
-              whiteSpace: "nowrap",
-              textOverflow: "ellipsis",
-            }}
-          >
-            {convName}
-          </p>
+        <div className="aurora-chat__title-wrap">
+          <p className="aurora-chat__title">{convName}</p>
 
           <p
-            style={{
-              fontSize: "0.75rem",
-              color: typingLabel
-                ? "var(--accent-secondary)"
-                : isOnline
-                ? "var(--status-online)"
-                : "var(--text-muted)",
-              transition: "color 0.2s",
-            }}
+            className="aurora-chat__sub"
+            data-online={!typingLabel && isOnline ? "true" : undefined}
+            data-typing={typingLabel ? "true" : undefined}
           >
             {subText}
           </p>
         </div>
 
-        <div style={{ display: "flex", gap: "6px" }}>
+        <div className="aurora-chat__header-actions">
           <HeaderBtn
             aria-label={showInfoPanel ? "Close info panel" : "Open info panel"}
             title="Info"
@@ -320,88 +303,94 @@ export default function ChatPanel({ onInfoToggle, showInfoPanel }) {
         role="log"
         aria-label="Messages"
         aria-live="polite"
-        style={s.messageList}
+        className="aurora-chat__messages"
         ref={messageListRef}
         onScroll={handleMessageScroll}
       >
-        {error && (
-          <div style={s.errorBanner} role="alert">
-            {error}
-          </div>
-        )}
+        <div className="aurora-chat__messages-inner">
+          {error && (
+            <div className="aurora-chat__error" role="alert">
+              {error}
+            </div>
+          )}
 
-        {loadingMessages && (
-          <div style={s.center}>
-            <Spinner size={24} />
-          </div>
-        )}
+          {loadingMessages && (
+            <div className="aurora-chat__center">
+              <Spinner size={24} />
+            </div>
+          )}
 
-        {!loadingMessages && messages.length === 0 && (
-          <EmptyState
-            icon="💬"
-            title="No messages yet"
-            description="Send the first message!"
-          />
-        )}
+          {!loadingMessages && messages.length === 0 && (
+            <EmptyState
+              icon="💬"
+              title="No messages yet"
+              description="Send the first message!"
+            />
+          )}
 
-        {!loadingMessages &&
-          messages.map((message, index) => {
-            const senderId = getId(message.sender);
-            const isOwn = senderId === getId(user);
+          {!loadingMessages &&
+            messages.map((message, index) => {
+              const senderId = getId(message.sender);
+              const isOwn = senderId === getId(user);
 
-            const prev = messages[index - 1];
-            const next = messages[index + 1];
-            const prevSenderId = getId(prev?.sender);
-            const nextSenderId = getId(next?.sender);
-            const startsNewDay = !prev || !isSameMessageDay(prev, message);
-            const endsCurrentDay = !next || !isSameMessageDay(message, next);
-            const isGroupStart =
-              startsNewDay || !prev || prevSenderId !== senderId;
-            const isGroupEnd =
-              endsCurrentDay || !next || nextSenderId !== senderId;
-            const groupGap = startsNewDay ? "6px" : isGroupStart ? "12px" : "2px";
-            const showAvatar = !isOwn && isGroupStart;
+              const prev = messages[index - 1];
+              const next = messages[index + 1];
+              const prevSenderId = getId(prev?.sender);
+              const nextSenderId = getId(next?.sender);
+              const startsNewDay = !prev || !isSameMessageDay(prev, message);
+              const endsCurrentDay = !next || !isSameMessageDay(message, next);
+              const isGroupStart =
+                startsNewDay || !prev || prevSenderId !== senderId;
+              const isGroupEnd =
+                endsCurrentDay || !next || nextSenderId !== senderId;
+              const groupGap = startsNewDay
+                ? "6px"
+                : isGroupStart
+                ? "12px"
+                : "2px";
+              const showAvatar = !isOwn && isGroupStart;
 
-            return (
-              <React.Fragment key={message._id}>
-                {startsNewDay && (
-                  <DateSeparator label={formatDateSeparator(message.createdAt)} />
-                )}
+              return (
+                <React.Fragment key={message._id}>
+                  {startsNewDay && (
+                    <DateSeparator
+                      label={formatDateSeparator(message.createdAt)}
+                    />
+                  )}
 
-                <MessageBubble
-                  message={message}
-                  isOwn={isOwn}
-                  showAvatar={showAvatar}
-                  showSenderName={
-                    !isOwn && selectedConversation.isGroup && isGroupStart
-                  }
-                  isGroupStart={isGroupStart}
-                  isGroupEnd={isGroupEnd}
-                  groupGap={groupGap}
-                />
-              </React.Fragment>
-            );
-          })}
+                  <MessageBubble
+                    message={message}
+                    isOwn={isOwn}
+                    showAvatar={showAvatar}
+                    showSenderName={
+                      !isOwn && selectedConversation.isGroup && isGroupStart
+                    }
+                    isGroupStart={isGroupStart}
+                    isGroupEnd={isGroupEnd}
+                    groupGap={groupGap}
+                  />
+                </React.Fragment>
+              );
+            })}
 
-        <div ref={endRef} />
+          <div ref={endRef} />
+        </div>
       </div>
 
       {showNewMessages && (
         <button
           type="button"
           onClick={() => scrollToBottom("smooth")}
-          style={s.newMessagesButton}
+          className="aurora-new-messages"
         >
           New messages
         </button>
       )}
 
       {typingLabel && (
-        <div style={s.typingBar} aria-live="polite" aria-label={typingLabel}>
+        <div className="aurora-typing" aria-live="polite" aria-label={typingLabel}>
           <TypingDots />
-          <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
-            {typingLabel}
-          </span>
+          <span className="aurora-typing__text">{typingLabel}</span>
         </div>
       )}
 
@@ -470,10 +459,10 @@ function DateSeparator({ label }) {
   if (!label) return null;
 
   return (
-    <div style={s.dateSeparator} aria-label={label}>
-      <span style={s.dateSeparatorLine} />
-      <span style={s.dateSeparatorText}>{label}</span>
-      <span style={s.dateSeparatorLine} />
+    <div className="aurora-date" aria-label={label}>
+      <span className="aurora-date__line" />
+      <span className="aurora-date__text">{label}</span>
+      <span className="aurora-date__line" />
     </div>
   );
 }
@@ -486,22 +475,22 @@ function SelectionToolbar({
   onDeleteForEveryone,
 }) {
   return (
-    <div style={s.selectionToolbar}>
+    <div className="aurora-chat__selection">
       <button
         type="button"
         onClick={onCancel}
         aria-label="Cancel selection"
-        style={s.selectionCloseButton}
+        className="aurora-chat__selection-close"
       >
         ✕
       </button>
 
-      <span style={s.selectionText}>{count} selected</span>
+      <span className="aurora-chat__selection-text">{count} selected</span>
 
       <button
         type="button"
         onClick={onDeleteForMe}
-        style={s.selectionDangerBtn}
+        className="aurora-chat__danger-btn"
       >
         Delete for me
       </button>
@@ -515,17 +504,7 @@ function SelectionToolbar({
             ? "Delete selected messages for everyone"
             : "Only your non-deleted messages can be deleted for everyone"
         }
-        style={{
-          ...s.selectionDangerBtn,
-          background: canDeleteForEveryone
-            ? "rgba(239,68,68,0.14)"
-            : "rgba(148,163,184,0.08)",
-          color: canDeleteForEveryone
-            ? "var(--status-error)"
-            : "var(--text-muted)",
-          cursor: canDeleteForEveryone ? "pointer" : "not-allowed",
-          opacity: canDeleteForEveryone ? 1 : 0.65,
-        }}
+        className="aurora-chat__danger-btn"
       >
         Delete for everyone
       </button>
@@ -538,172 +517,11 @@ function HeaderBtn({ children, onClick, active, ...props }) {
     <button
       type="button"
       onClick={onClick}
+      data-active={active ? "true" : undefined}
+      className="aurora-chat__icon-btn"
       {...props}
-      style={{
-        background: active ? "var(--bg-active)" : "transparent",
-        border: `1px solid ${active ? "var(--border-accent)" : "transparent"}`,
-        borderRadius: "var(--radius-md)",
-        width: 36,
-        height: 36,
-        cursor: "pointer",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        color: active ? "var(--accent-secondary)" : "var(--text-muted)",
-        fontSize: "0.95rem",
-      }}
     >
       {children}
     </button>
   );
 }
-
-const s = {
-  emptyWrap: {
-    flex: 1,
-    minWidth: 0,
-    height: "100%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background:
-      "radial-gradient(circle at top, rgba(139,92,246,0.1), transparent 28%), var(--bg-base)",
-  },
-
-  wrap: {
-    position: "relative",
-    flex: 1,
-    minWidth: 0,
-    height: "100%",
-    display: "flex",
-    flexDirection: "column",
-    background:
-      "radial-gradient(circle at 35% 0%, rgba(139,92,246,0.08), transparent 30%), var(--bg-base)",
-  },
-
-  header: {
-    height: 72,
-    flexShrink: 0,
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-    padding: "0 20px",
-    borderBottom: "1px solid var(--border-subtle)",
-    background: "var(--bg-surface)",
-  },
-
-  selectionToolbar: {
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-    padding: "10px 16px",
-    borderBottom: "1px solid var(--border-subtle)",
-    background:
-      "linear-gradient(135deg, rgba(139,92,246,0.14), rgba(6,182,212,0.08))",
-    flexShrink: 0,
-  },
-
-  selectionCloseButton: {
-    width: 30,
-    height: 30,
-    borderRadius: "var(--radius-full)",
-    border: "1px solid var(--border-default)",
-    background: "var(--bg-overlay)",
-    color: "var(--text-secondary)",
-    cursor: "pointer",
-  },
-
-  selectionText: {
-    flex: 1,
-    color: "var(--text-primary)",
-    fontSize: "0.85rem",
-    fontWeight: 700,
-  },
-
-  selectionDangerBtn: {
-    border: "1px solid rgba(239,68,68,0.3)",
-    background: "rgba(239,68,68,0.1)",
-    color: "var(--status-error)",
-    borderRadius: "var(--radius-md)",
-    padding: "7px 10px",
-    cursor: "pointer",
-    fontSize: "0.78rem",
-    fontWeight: 700,
-    fontFamily: "var(--font-sans)",
-  },
-
-  messageList: {
-    flex: 1,
-    minHeight: 0,
-    overflowY: "auto",
-    padding: "18px 20px 20px",
-  },
-
-  center: {
-    height: "100%",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  errorBanner: {
-    margin: "0 auto 12px",
-    maxWidth: 520,
-    padding: "8px 12px",
-    borderRadius: "var(--radius-md)",
-    border: "1px solid rgba(239,68,68,0.25)",
-    background: "rgba(239,68,68,0.1)",
-    color: "var(--status-error)",
-    fontSize: "0.8rem",
-  },
-
-  dateSeparator: {
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-    margin: "16px 0 12px",
-  },
-
-  dateSeparatorLine: {
-    flex: 1,
-    height: 1,
-    background: "var(--border-subtle)",
-  },
-
-  dateSeparatorText: {
-    padding: "4px 10px",
-    borderRadius: "var(--radius-full)",
-    background: "var(--bg-overlay)",
-    border: "1px solid var(--border-default)",
-    color: "var(--text-muted)",
-    fontSize: "0.7rem",
-    fontWeight: 700,
-  },
-
-  newMessagesButton: {
-    position: "absolute",
-    left: "50%",
-    bottom: 86,
-    transform: "translateX(-50%)",
-    border: "1px solid var(--border-accent)",
-    borderRadius: "var(--radius-full)",
-    background: "var(--bg-elevated)",
-    color: "var(--accent-secondary)",
-    padding: "7px 12px",
-    cursor: "pointer",
-    fontSize: "0.78rem",
-    fontWeight: 700,
-    boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
-    zIndex: 5,
-  },
-
-  typingBar: {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    padding: "6px 20px",
-    borderTop: "1px solid var(--border-subtle)",
-    background: "var(--bg-surface)",
-    flexShrink: 0,
-  },
-};
