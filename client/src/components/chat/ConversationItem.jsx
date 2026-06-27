@@ -3,6 +3,18 @@ import Avatar from "../ui/Avatar";
 import { useChat } from "../../context/ChatContext";
 
 const getId = (value) => String(value?._id || value || "");
+const PREVIEW_LIMIT = 72;
+
+function trimPreview(value, fallback = "") {
+  const clean = String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!clean) return fallback;
+  if (clean.length <= PREVIEW_LIMIT) return clean;
+
+  return `${clean.slice(0, PREVIEW_LIMIT - 3)}...`;
+}
 
 const getOtherParticipant = (conversation, currentUserId) => {
   if (!conversation?.participants?.length) return null;
@@ -46,18 +58,22 @@ export function getConvOnline(conversation, currentUserId) {
   return Boolean(other?.isOnline);
 }
 
-function getLastPreview(conversation) {
+function getLastPreview(conversation, currentUserId) {
   const lastMessage = conversation?.lastMessage;
 
   if (!lastMessage) return "No messages yet";
-  if (lastMessage.deletedForEveryone) return "Message was deleted";
-  if (lastMessage.text) return lastMessage.text;
+  if (typeof lastMessage === "string") return trimPreview(lastMessage);
 
-  if (lastMessage.attachments?.length) {
-    return `📎 ${lastMessage.attachments[0].fileName || "Attachment"}`;
-  }
+  const isOwn = getId(lastMessage.sender) === getId(currentUserId);
+  let preview = "";
 
-  return "";
+  if (lastMessage.deletedForEveryone) preview = "Message deleted";
+  else if (lastMessage.attachments?.length) preview = "\u{1F4CE} Attachment";
+  else if (lastMessage.text) preview = trimPreview(lastMessage.text);
+
+  if (!preview) return "";
+
+  return isOwn ? `You: ${preview}` : preview;
 }
 
 function formatTime(dateStr) {
@@ -74,6 +90,7 @@ function formatTime(dateStr) {
     return date.toLocaleTimeString("en-IN", {
       hour: "2-digit",
       minute: "2-digit",
+      hour12: false,
     });
   }
 
@@ -99,7 +116,7 @@ export default function ConversationItem({
 
   const name = getConvName(conversation, currentUserId);
   const avatar = getConvAvatar(conversation, currentUserId);
-  const preview = getLastPreview(conversation);
+  const preview = getLastPreview(conversation, currentUserId);
   const time = formatTime(conversation?.updatedAt);
   const isSelf = Boolean(conversation?.isSelf);
 
@@ -128,11 +145,14 @@ export default function ConversationItem({
         border: `1px solid ${
           isActive ? "var(--border-accent)" : "transparent"
         }`,
+        position: "relative",
         width: "100%",
         textAlign: "left",
         cursor: "pointer",
         transition: "background 0.12s, border-color 0.12s",
-        boxShadow: isActive ? "0 0 12px var(--accent-glow)" : "none",
+        boxShadow: isActive
+          ? "inset 3px 0 0 var(--accent-primary), 0 0 12px var(--accent-glow)"
+          : "none",
       }}
       onMouseEnter={(e) => {
         if (!isActive) e.currentTarget.style.background = "var(--bg-hover)";

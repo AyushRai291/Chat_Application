@@ -3,6 +3,31 @@ import { useChat } from "../../context/ChatContext";
 import Spinner from "../ui/Spinner";
 
 const TYPING_DEBOUNCE_MS = 1200;
+const MAX_TEXTAREA_HEIGHT = 120;
+const PREVIEW_LIMIT = 88;
+
+function trimPreview(value, fallback = "") {
+  const clean = String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!clean) return fallback;
+  if (clean.length <= PREVIEW_LIMIT) return clean;
+
+  return `${clean.slice(0, PREVIEW_LIMIT - 3)}...`;
+}
+
+function getSenderName(sender) {
+  return sender?.name || sender?.email || "Unknown";
+}
+
+function getReplyPreview(message) {
+  if (!message) return "";
+  if (message.deletedForEveryone) return "Message deleted";
+  if (message.text) return trimPreview(message.text);
+  if (message.attachments?.length) return "Attachment";
+  return "Message";
+}
 
 export default function Composer() {
   const {
@@ -21,6 +46,17 @@ export default function Composer() {
   const stopTimerRef = useRef(null);
 
   const conversationId = selectedConversation?._id;
+
+  const resizeTextarea = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    textarea.style.height = "auto";
+    const nextHeight = Math.min(textarea.scrollHeight, MAX_TEXTAREA_HEIGHT);
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY =
+      textarea.scrollHeight > MAX_TEXTAREA_HEIGHT ? "auto" : "hidden";
+  }, []);
 
   const clearStopTimer = useCallback(() => {
     if (stopTimerRef.current) {
@@ -62,6 +98,10 @@ export default function Composer() {
     };
   }, [clearStopTimer, conversationId, stopTyping]);
 
+  useEffect(() => {
+    resizeTextarea();
+  }, [resizeTextarea, text]);
+
   const handleChange = (e) => {
     const value = e.target.value;
     setText(value);
@@ -95,6 +135,7 @@ export default function Composer() {
       setText("");
       clearReplyTarget();
       textareaRef.current?.focus();
+      requestAnimationFrame(resizeTextarea);
     }
   };
 
@@ -143,7 +184,7 @@ export default function Composer() {
                 marginBottom: "2px",
               }}
             >
-              {replyTarget.sender?.name || replyTarget.sender?.email || "Unknown"}
+              {getSenderName(replyTarget.sender)}
             </p>
 
             <p
@@ -155,9 +196,7 @@ export default function Composer() {
                 whiteSpace: "nowrap",
               }}
             >
-              {replyTarget.deletedForEveryone
-                ? "Message was deleted"
-                : replyTarget.text || "Attachment"}
+              {getReplyPreview(replyTarget)}
             </p>
           </div>
 
@@ -207,7 +246,7 @@ export default function Composer() {
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           onBlur={handleBlur}
-          placeholder="Message…"
+          placeholder="Message..."
           aria-label="Type a message"
           rows={1}
           style={{
@@ -220,8 +259,8 @@ export default function Composer() {
             resize: "none",
             lineHeight: 1.5,
             padding: "4px 0",
-            maxHeight: "120px",
-            overflowY: "auto",
+            maxHeight: `${MAX_TEXTAREA_HEIGHT}px`,
+            overflowY: "hidden",
             alignSelf: "center",
             fontFamily: "var(--font-sans)",
           }}
@@ -252,20 +291,10 @@ export default function Composer() {
             color: "#fff",
           }}
         >
-          {sendingMessage ? <Spinner size={16} color="#fff" /> : "➤"}
+          {sendingMessage ? <Spinner size={16} color="#fff" /> : "\u27A4"}
         </button>
       </div>
 
-      <p
-        style={{
-          fontSize: "0.7rem",
-          color: "var(--text-muted)",
-          marginTop: "6px",
-          paddingLeft: "4px",
-        }}
-      >
-        Enter to send · Shift+Enter for new line
-      </p>
     </div>
   );
 }

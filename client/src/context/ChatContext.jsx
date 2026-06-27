@@ -46,6 +46,7 @@ export function ChatProvider({ children }) {
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [replyTarget, setReplyTargetState] = useState(null);
+  const [selectedMessageIds, setSelectedMessageIds] = useState(new Set());
 
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -76,9 +77,7 @@ export function ChatProvider({ children }) {
 
   const updatePresenceEverywhere = useCallback((nextOnlineIds) => {
     setOnlineUserIds(nextOnlineIds);
-
     setConversations((prev) => applyOnlineStateToList(prev, nextOnlineIds));
-
     setSelectedConversation((prev) =>
       prev ? applyOnlineStateToConversation(prev, nextOnlineIds) : prev
     );
@@ -93,25 +92,28 @@ export function ChatProvider({ children }) {
         onlineIdsRef.current
       );
 
-      const exists = prev.some((item) => item._id === withPresence._id);
+      const exists = prev.some((item) => getId(item) === getId(withPresence));
 
       if (!exists) return [withPresence, ...prev];
 
       const updated = prev.map((item) =>
-        item._id === withPresence._id ? { ...item, ...withPresence } : item
+        getId(item) === getId(withPresence) ? { ...item, ...withPresence } : item
       );
 
       if (!moveTop) return updated;
 
-      const target = updated.find((item) => item._id === withPresence._id);
-      const rest = updated.filter((item) => item._id !== withPresence._id);
+      const target = updated.find((item) => getId(item) === getId(withPresence));
+      const rest = updated.filter((item) => getId(item) !== getId(withPresence));
 
       return target ? [target, ...rest] : updated;
     });
 
     setSelectedConversation((prev) =>
-      prev?._id === conversation._id
-        ? applyOnlineStateToConversation({ ...prev, ...conversation }, onlineIdsRef.current)
+      getId(prev) === getId(conversation)
+        ? applyOnlineStateToConversation(
+            { ...prev, ...conversation },
+            onlineIdsRef.current
+          )
         : prev
     );
   }, []);
@@ -119,8 +121,10 @@ export function ChatProvider({ children }) {
   const updateConversationLastMessage = useCallback((conversationId, message) => {
     if (!conversationId || !message?._id) return;
 
+    const id = getId(conversationId);
+
     setConversations((prev) => {
-      const exists = prev.find((item) => item._id === conversationId);
+      const exists = prev.find((item) => getId(item) === id);
       if (!exists) return prev;
 
       const updatedConversation = {
@@ -129,12 +133,12 @@ export function ChatProvider({ children }) {
         updatedAt: message.createdAt || exists.updatedAt,
       };
 
-      const rest = prev.filter((item) => item._id !== conversationId);
+      const rest = prev.filter((item) => getId(item) !== id);
       return [updatedConversation, ...rest];
     });
 
     setSelectedConversation((prev) =>
-      prev?._id === conversationId
+      getId(prev) === id
         ? {
             ...prev,
             lastMessage: message,
@@ -150,7 +154,9 @@ export function ChatProvider({ children }) {
 
     const patchMessage = (message) => {
       if (!message || getId(message) !== id) return message;
-      return typeof updater === "function" ? updater(message) : { ...message, ...updater };
+      return typeof updater === "function"
+        ? updater(message)
+        : { ...message, ...updater };
     };
 
     setMessages((prev) => prev.map(patchMessage));
@@ -158,7 +164,10 @@ export function ChatProvider({ children }) {
     setConversations((prev) =>
       prev.map((conversation) =>
         getId(conversation.lastMessage) === id
-          ? { ...conversation, lastMessage: patchMessage(conversation.lastMessage) }
+          ? {
+              ...conversation,
+              lastMessage: patchMessage(conversation.lastMessage),
+            }
           : conversation
       )
     );
@@ -169,7 +178,9 @@ export function ChatProvider({ children }) {
         : prev
     );
 
-    setReplyTargetState((prev) => (getId(prev) === id ? patchMessage(prev) : prev));
+    setReplyTargetState((prev) =>
+      getId(prev) === id ? patchMessage(prev) : prev
+    );
   }, []);
 
   const removeMessageForCurrentUser = useCallback((messageId) => {
@@ -191,6 +202,13 @@ export function ChatProvider({ children }) {
     );
 
     setReplyTargetState((prev) => (getId(prev) === id ? null : prev));
+
+    setSelectedMessageIds((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
   }, []);
 
   const setReplyTarget = useCallback((message) => {
@@ -200,6 +218,24 @@ export function ChatProvider({ children }) {
 
   const clearReplyTarget = useCallback(() => {
     setReplyTargetState(null);
+  }, []);
+
+  const toggleMessageSelection = useCallback((messageId) => {
+    const id = getId(messageId);
+    if (!id) return;
+
+    setSelectedMessageIds((prev) => {
+      const next = new Set(prev);
+
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+
+      return next;
+    });
+  }, []);
+
+  const clearSelectedMessages = useCallback(() => {
+    setSelectedMessageIds(new Set());
   }, []);
 
   const removeConversationForCurrentUser = useCallback((conversationId) => {
@@ -213,6 +249,8 @@ export function ChatProvider({ children }) {
     setSelectedConversation((prev) => (getId(prev) === id ? null : prev));
     setMessages((prev) => (getId(selectedConvRef.current) === id ? [] : prev));
     setReplyTargetState(null);
+    setSelectedMessageIds(new Set());
+
     setTypingUsersByConversation((prev) => {
       const next = { ...prev };
       delete next[id];
@@ -258,30 +296,36 @@ export function ChatProvider({ children }) {
     socket.emit("messages:read", { conversationId: id });
   }, []);
 
-  const loadMessages = useCallback(async (conversationId) => {
-    if (!conversationId) return [];
+  const loadMessages = useCallback(
+    async (conversationId) => {
+      if (!conversationId) return [];
 
-    setLoadingMessages(true);
-    setMessages([]);
-    setError(null);
+      setLoadingMessages(true);
+      setMessages([]);
+      setSelectedMessageIds(new Set());
+      setError(null);
 
-    try {
-      const data = await messageService.getMessages(conversationId);
-      setMessages(data);
-      markConversationRead(conversationId);
-
-      return data;
-    } catch (err) {
-      setError(getErrorMessage(err, "Failed to load messages."));
-      return [];
-    } finally {
-      setLoadingMessages(false);
-    }
-  }, [markConversationRead]);
+      try {
+        const data = await messageService.getMessages(conversationId);
+        setMessages(data);
+        markConversationRead(conversationId);
+        return data;
+      } catch (err) {
+        setError(getErrorMessage(err, "Failed to load messages."));
+        return [];
+      } finally {
+        setLoadingMessages(false);
+      }
+    },
+    [markConversationRead]
+  );
 
   const selectConversation = useCallback(
     async (conversation) => {
       if (!conversation?._id) return;
+
+      setSelectedMessageIds(new Set());
+      setReplyTargetState(null);
 
       const withPresence = applyOnlineStateToConversation(
         conversation,
@@ -332,153 +376,221 @@ export function ChatProvider({ children }) {
     [selectConversation, upsertConversation]
   );
 
-  const deleteConversationForMe = useCallback(async (conversationId) => {
-    const id = getId(conversationId || selectedConvRef.current);
-    if (!id) return null;
+  const deleteConversationForMe = useCallback(
+    async (conversationId) => {
+      const id = getId(conversationId || selectedConvRef.current);
+      if (!id) return null;
 
-    setError(null);
+      setError(null);
 
-    try {
-      const data = await conversationService.deleteForMe(id);
-      const deletedId = getId(data?.conversationId || id);
-      removeConversationForCurrentUser(deletedId);
-      return deletedId;
-    } catch (err) {
-      setError(getErrorMessage(err, "Failed to delete conversation."));
-      return null;
-    }
-  }, [removeConversationForCurrentUser]);
+      try {
+        const data = await conversationService.deleteForMe(id);
+        const deletedId = getId(data?.conversationId || id);
+        removeConversationForCurrentUser(deletedId);
+        return deletedId;
+      } catch (err) {
+        setError(getErrorMessage(err, "Failed to delete conversation."));
+        return null;
+      }
+    },
+    [removeConversationForCurrentUser]
+  );
 
-  const sendMessage = useCallback(async ({ text = "", replyTo = null, attachments = [] } = {}) => {
-    const cleanText = text.trim();
-    const conversationId = selectedConvRef.current?._id;
+  const sendMessage = useCallback(
+    async ({ text = "", replyTo = null, attachments = [] } = {}) => {
+      const cleanText = text.trim();
+      const conversationId = selectedConvRef.current?._id;
 
-    if (!conversationId) return null;
-    if (!cleanText && attachments.length === 0) return null;
+      if (!conversationId) return null;
+      if (!cleanText && attachments.length === 0) return null;
 
-    setSendingMessage(true);
-    setError(null);
+      setSendingMessage(true);
+      setError(null);
 
-    try {
-      const message = await messageService.sendMessage({
-        conversationId,
-        text: cleanText,
-        replyTo,
-        attachments,
-      });
+      try {
+        const message = await messageService.sendMessage({
+          conversationId,
+          text: cleanText,
+          replyTo,
+          attachments,
+        });
 
-      setMessages((prev) => {
-        if (prev.some((item) => item._id === message._id)) return prev;
-        return [...prev, message];
-      });
+        setMessages((prev) => {
+          if (prev.some((item) => getId(item) === getId(message))) return prev;
+          return [...prev, message];
+        });
 
-      updateConversationLastMessage(conversationId, message);
+        updateConversationLastMessage(conversationId, message);
 
-      return message;
-    } catch (err) {
-      setError(getErrorMessage(err, "Failed to send message."));
-      return null;
-    } finally {
-      setSendingMessage(false);
-    }
-  }, [updateConversationLastMessage]);
+        return message;
+      } catch (err) {
+        setError(getErrorMessage(err, "Failed to send message."));
+        return null;
+      } finally {
+        setSendingMessage(false);
+      }
+    },
+    [updateConversationLastMessage]
+  );
 
-  const editMessage = useCallback(async (messageId, text) => {
-    const cleanText = text.trim();
+  const editMessage = useCallback(
+    async (messageId, text) => {
+      const cleanText = text.trim();
 
-    if (!messageId || !cleanText) return null;
+      if (!messageId || !cleanText) return null;
 
-    setError(null);
+      setError(null);
 
-    try {
-      const message = await messageService.updateMessage(messageId, cleanText);
-      const nextMessage = message?._id
-        ? message
-        : { _id: messageId, text: cleanText, isEdited: true };
+      try {
+        const message = await messageService.updateMessage(messageId, cleanText);
+        const nextMessage = message?._id
+          ? message
+          : { _id: messageId, text: cleanText, isEdited: true };
 
-      patchMessageEverywhere(messageId, (current) => ({
-        ...current,
-        ...nextMessage,
-      }));
-
-      return nextMessage;
-    } catch (err) {
-      setError(getErrorMessage(err, "Failed to edit message."));
-      return null;
-    }
-  }, [patchMessageEverywhere]);
-
-  const deleteMessageForMe = useCallback(async (messageId) => {
-    if (!messageId) return null;
-
-    setError(null);
-
-    try {
-      const data = await messageService.deleteForMe(messageId);
-      const deletedId = getId(data?.messageId || data?._id || messageId);
-
-      removeMessageForCurrentUser(deletedId);
-      return deletedId;
-    } catch (err) {
-      setError(getErrorMessage(err, "Failed to delete message."));
-      return null;
-    }
-  }, [removeMessageForCurrentUser]);
-
-  const deleteMessageForEveryone = useCallback(async (messageId) => {
-    if (!messageId) return null;
-
-    setError(null);
-
-    try {
-      const message = await messageService.deleteForEveryone(messageId);
-      const nextMessage = message?._id
-        ? message
-        : {
-            _id: messageId,
-            text: "",
-            attachments: [],
-            reactions: [],
-            deletedForEveryone: true,
-            isEdited: false,
-          };
-
-      patchMessageEverywhere(messageId, (current) => ({
-        ...current,
-        ...nextMessage,
-        deletedForEveryone: true,
-      }));
-
-      setReplyTargetState((prev) => (getId(prev) === getId(messageId) ? null : prev));
-      return nextMessage;
-    } catch (err) {
-      setError(getErrorMessage(err, "Failed to delete message for everyone."));
-      return null;
-    }
-  }, [patchMessageEverywhere]);
-
-  const toggleReaction = useCallback(async (messageId, emoji) => {
-    if (!messageId || !emoji) return null;
-
-    setError(null);
-
-    try {
-      const message = await messageService.toggleReaction(messageId, emoji);
-
-      if (message?._id) {
         patchMessageEverywhere(messageId, (current) => ({
           ...current,
-          ...message,
-          reactions: message.reactions || [],
+          ...nextMessage,
         }));
-      }
 
-      return message;
-    } catch (err) {
-      setError(getErrorMessage(err, "Failed to update reaction."));
-      return null;
+        return nextMessage;
+      } catch (err) {
+        setError(getErrorMessage(err, "Failed to edit message."));
+        return null;
+      }
+    },
+    [patchMessageEverywhere]
+  );
+
+  const deleteMessageForMe = useCallback(
+    async (messageId) => {
+      if (!messageId) return null;
+
+      setError(null);
+
+      try {
+        const data = await messageService.deleteForMe(messageId);
+        const deletedId = getId(data?.messageId || data?._id || messageId);
+
+        removeMessageForCurrentUser(deletedId);
+        return deletedId;
+      } catch (err) {
+        setError(getErrorMessage(err, "Failed to delete message."));
+        return null;
+      }
+    },
+    [removeMessageForCurrentUser]
+  );
+
+  const deleteMessageForEveryone = useCallback(
+    async (messageId) => {
+      if (!messageId) return null;
+
+      setError(null);
+
+      try {
+        const message = await messageService.deleteForEveryone(messageId);
+        const nextMessage = message?._id
+          ? message
+          : {
+              _id: messageId,
+              text: "",
+              attachments: [],
+              reactions: [],
+              deletedForEveryone: true,
+              isEdited: false,
+            };
+
+        patchMessageEverywhere(messageId, (current) => ({
+          ...current,
+          ...nextMessage,
+          deletedForEveryone: true,
+        }));
+
+        setReplyTargetState((prev) =>
+          getId(prev) === getId(messageId) ? null : prev
+        );
+
+        setSelectedMessageIds((prev) => {
+          const id = getId(messageId);
+          if (!prev.has(id)) return prev;
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+
+        return nextMessage;
+      } catch (err) {
+        setError(getErrorMessage(err, "Failed to delete message for everyone."));
+        return null;
+      }
+    },
+    [patchMessageEverywhere]
+  );
+
+  const toggleReaction = useCallback(
+    async (messageId, emoji) => {
+      if (!messageId || !emoji) return null;
+
+      setError(null);
+
+      try {
+        const message = await messageService.toggleReaction(messageId, emoji);
+
+        if (message?._id) {
+          patchMessageEverywhere(messageId, (current) => ({
+            ...current,
+            ...message,
+            reactions: message.reactions || [],
+          }));
+        }
+
+        return message;
+      } catch (err) {
+        setError(getErrorMessage(err, "Failed to update reaction."));
+        return null;
+      }
+    },
+    [patchMessageEverywhere]
+  );
+
+  const deleteSelectedMessagesForMe = useCallback(async () => {
+    const ids = Array.from(selectedMessageIds);
+    if (ids.length === 0) return 0;
+
+    setError(null);
+
+    let deletedCount = 0;
+
+    for (const id of ids) {
+      try {
+        await messageService.deleteForMe(id);
+        removeMessageForCurrentUser(id);
+        deletedCount++;
+      } catch (err) {
+        setError(getErrorMessage(err, "Failed to delete selected messages."));
+      }
     }
-  }, [patchMessageEverywhere]);
+
+    setSelectedMessageIds(new Set());
+    return deletedCount;
+  }, [removeMessageForCurrentUser, selectedMessageIds]);
+
+  const deleteSelectedMessagesForEveryone = useCallback(async () => {
+    const ids = Array.from(selectedMessageIds);
+    if (ids.length === 0) return 0;
+
+    setError(null);
+
+    let deletedCount = 0;
+
+    for (const id of ids) {
+      const deleted = await deleteMessageForEveryone(id);
+      if (deleted) deletedCount++;
+    }
+
+    setSelectedMessageIds(new Set());
+    return deletedCount;
+  }, [deleteMessageForEveryone, selectedMessageIds]);
 
   const startTyping = useCallback((conversationId) => {
     const socket = getSocket();
@@ -572,7 +684,10 @@ export function ChatProvider({ children }) {
 
       if (!message?._id || !conversationId) return;
 
-      patchMessageEverywhere(message._id, (current) => ({ ...current, ...message }));
+      patchMessageEverywhere(message._id, (current) => ({
+        ...current,
+        ...message,
+      }));
     });
 
     socket.on("message:deleted-for-everyone", (data) => {
@@ -597,7 +712,10 @@ export function ChatProvider({ children }) {
         ...patch,
         deletedForEveryone: true,
       }));
-      setReplyTargetState((prev) => (getId(prev) === getId(messageId) ? null : prev));
+
+      setReplyTargetState((prev) =>
+        getId(prev) === getId(messageId) ? null : prev
+      );
     });
 
     socket.on("message:deleted-for-me", (data) => {
@@ -659,7 +777,10 @@ export function ChatProvider({ children }) {
 
         setConversations((prev) =>
           prev.map((conversation) => {
-            if (getId(conversation) !== conversationId || !conversation.lastMessage) {
+            if (
+              getId(conversation) !== conversationId ||
+              !conversation.lastMessage
+            ) {
               return conversation;
             }
 
@@ -667,7 +788,10 @@ export function ChatProvider({ children }) {
             return receipt
               ? {
                   ...conversation,
-                  lastMessage: patchWithReceipt(conversation.lastMessage, receipt),
+                  lastMessage: patchWithReceipt(
+                    conversation.lastMessage,
+                    receipt
+                  ),
                 }
               : conversation;
           })
@@ -694,7 +818,9 @@ export function ChatProvider({ children }) {
       if (getId(selectedConvRef.current) === conversationId) {
         setMessages((prev) =>
           prev.map((message) =>
-            getId(message) === messageId ? patchWithReceipt(message, data) : message
+            getId(message) === messageId
+              ? patchWithReceipt(message, data)
+              : message
           )
         );
       }
@@ -730,12 +856,12 @@ export function ChatProvider({ children }) {
     });
 
     socket.on("presence:online-users", (data) => {
-      const ids = (data?.users || data?.userIds || data || []).map(getId);
+      const ids = Array.isArray(data?.userIds) ? data.userIds.map(getId) : [];
       updatePresenceEverywhere(new Set(ids));
     });
 
     socket.on("presence:update", (data) => {
-      const userId = getId(data?.userId || data?.user);
+      const userId = getId(data?.userId || data?.user?._id);
       if (!userId) return;
 
       const next = new Set(onlineIdsRef.current);
@@ -747,18 +873,14 @@ export function ChatProvider({ children }) {
     });
 
     socket.on("typing:start", (data) => {
-      const conversationId = data?.conversationId;
-      const typingUser = data?.user || {
-        _id: data?.userId,
-        name: data?.name,
-        email: data?.email,
-      };
+      const conversationId = getId(data?.conversationId);
+      const typingUser = data?.user;
 
-      if (!conversationId || !getId(typingUser)) return;
-      if (getId(typingUser) === getId(user)) return;
+      if (!conversationId || getId(typingUser) === getId(user)) return;
 
       setTypingUsersByConversation((prev) => {
         const current = prev[conversationId] || [];
+
         if (current.some((item) => getId(item) === getId(typingUser))) {
           return prev;
         }
@@ -771,35 +893,35 @@ export function ChatProvider({ children }) {
     });
 
     socket.on("typing:stop", (data) => {
-      const conversationId = data?.conversationId;
-      const typingUserId = getId(data?.user || data?.userId);
+      const conversationId = getId(data?.conversationId);
+      const typingUser = data?.user;
 
-      if (!conversationId || !typingUserId) return;
+      if (!conversationId) return;
 
-      setTypingUsersByConversation((prev) => {
-        const current = prev[conversationId] || [];
-
-        return {
-          ...prev,
-          [conversationId]: current.filter(
-            (item) => getId(item) !== typingUserId
-          ),
-        };
-      });
+      setTypingUsersByConversation((prev) => ({
+        ...prev,
+        [conversationId]: (prev[conversationId] || []).filter(
+          (item) => getId(item) !== getId(typingUser)
+        ),
+      }));
     });
+
+    if (!socket.connected) {
+      socket.connect();
+    }
 
     return () => {
       offEvents();
-      disconnectSocket();
       setSocketConnected(false);
+      disconnectSocket();
     };
   }, [
     user,
     markConversationRead,
     patchMessageEverywhere,
-    removeMessageForCurrentUser,
-    removeConversationForCurrentUser,
     reloadConversationsOnce,
+    removeConversationForCurrentUser,
+    removeMessageForCurrentUser,
     updateConversationLastMessage,
     updatePresenceEverywhere,
   ]);
@@ -811,31 +933,36 @@ export function ChatProvider({ children }) {
         selectedConversation,
         messages,
         replyTarget,
+        selectedMessageIds,
+        selectedMessageCount: selectedMessageIds.size,
 
         loadingConversations,
         loadingMessages,
         sendingMessage,
-
         socketConnected,
         onlineUserIds,
         typingUsersByConversation,
-
         error,
-        setError,
 
         loadConversations,
-        loadMessages,
         selectConversation,
         createSavedConversation,
         createDirectConversation,
         deleteConversationForMe,
+
         sendMessage,
         editMessage,
         deleteMessageForMe,
         deleteMessageForEveryone,
         toggleReaction,
+
         setReplyTarget,
         clearReplyTarget,
+
+        toggleMessageSelection,
+        clearSelectedMessages,
+        deleteSelectedMessagesForMe,
+        deleteSelectedMessagesForEveryone,
 
         startTyping,
         stopTyping,
@@ -848,10 +975,6 @@ export function ChatProvider({ children }) {
 
 export function useChat() {
   const ctx = useContext(ChatContext);
-
-  if (!ctx) {
-    throw new Error("useChat must be used inside ChatProvider");
-  }
-
+  if (!ctx) throw new Error("useChat must be used inside ChatProvider");
   return ctx;
 }

@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useChat } from "../../context/ChatContext";
 import Avatar from "../ui/Avatar";
 import Spinner from "../ui/Spinner";
 import ConversationItem, { getConvName } from "../chat/ConversationItem";
 import UserSearch from "../users/UserSearch";
+import ConfirmDialog from "../ui/ConfirmDialog";
 
 const SearchIcon = () => (
   <svg
@@ -21,6 +22,16 @@ const SearchIcon = () => (
 );
 
 const getId = (value) => String(value?._id || value || "");
+
+const getConversationSortTime = (conversation) => {
+  const value =
+    conversation?.updatedAt ||
+    conversation?.lastMessage?.createdAt ||
+    conversation?.createdAt;
+  const time = value ? new Date(value).getTime() : 0;
+
+  return Number.isNaN(time) ? 0 : time;
+};
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
@@ -40,19 +51,28 @@ export default function Sidebar() {
   const [showUserSearch, setShowUserSearch] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [openingSaved, setOpeningSaved] = useState(false);
+  const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
 
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
 
-  const filtered = conversations.filter((conversation) => {
+  const filtered = useMemo(() => {
     const cleanQuery = query.trim().toLowerCase();
 
-    if (!cleanQuery) return true;
+    return conversations
+      .slice()
+      .sort(
+        (first, second) =>
+          getConversationSortTime(second) - getConversationSortTime(first)
+      )
+      .filter((conversation) => {
+        if (!cleanQuery) return true;
 
-    const name = getConvName(conversation, user?._id).toLowerCase();
-    return name.includes(cleanQuery);
-  });
+        const name = getConvName(conversation, user?._id).toLowerCase();
+        return name.includes(cleanQuery);
+      });
+  }, [conversations, query, user?._id]);
 
   const handleSavedMessages = async () => {
     if (openingSaved) return;
@@ -73,6 +93,7 @@ export default function Sidebar() {
 
     try {
       await logout();
+      setConfirmLogoutOpen(false);
     } finally {
       setLoggingOut(false);
     }
@@ -361,7 +382,7 @@ export default function Sidebar() {
 
           <button
             type="button"
-            onClick={handleLogout}
+            onClick={() => setConfirmLogoutOpen(true)}
             disabled={loggingOut}
             aria-label="Logout"
             title="Logout"
@@ -392,6 +413,22 @@ export default function Sidebar() {
           </button>
         </div>
       </aside>
+
+      
+      <ConfirmDialog
+        open={confirmLogoutOpen}
+        title="Log out?"
+        description="You will be signed out from Aurora on this browser."
+        confirmText="Log out"
+        cancelText="Cancel"
+        busy={loggingOut}
+        danger={false}
+        onCancel={() => {
+          if (!loggingOut) setConfirmLogoutOpen(false);
+        }}
+        onConfirm={handleLogout}
+      />
+       
     </>
   );
 }

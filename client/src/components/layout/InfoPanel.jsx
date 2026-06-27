@@ -19,6 +19,33 @@ function formatLastSeen(dateStr) {
   });
 }
 
+function getActionCopy(conversation) {
+  if (conversation.isSelf) {
+    return {
+      button: "Clear Saved Messages",
+      title: "Clear Saved Messages?",
+      desc: "This will hide this chat and remove saved messages only for you.",
+      confirm: "Clear",
+    };
+  }
+
+  if (conversation.isGroup) {
+    return {
+      button: "Hide conversation",
+      title: "Hide this conversation?",
+      desc: "This will hide the group chat only for you. Other members will not be affected.",
+      confirm: "Hide",
+    };
+  }
+
+  return {
+    button: "Delete conversation",
+    title: "Delete this conversation?",
+    desc: "This will delete the chat only for you. The other user will still keep their messages.",
+    confirm: "Delete",
+  };
+}
+
 export default function InfoPanel({ onClose }) {
   const { user } = useAuth();
 
@@ -28,7 +55,9 @@ export default function InfoPanel({ onClose }) {
     socketConnected,
     deleteConversationForMe,
   } = useChat();
+
   const [deletingConversation, setDeletingConversation] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   if (!selectedConversation) return null;
 
@@ -36,12 +65,11 @@ export default function InfoPanel({ onClose }) {
   const conversationName = getConvName(conversation, user?._id);
   const conversationAvatar = getConvAvatar(conversation, user?._id);
   const participants = conversation.participants || [];
+  const actionCopy = getActionCopy(conversation);
 
   const otherUser =
     !conversation.isSelf && !conversation.isGroup
-      ? participants.find(
-          (participant) => getId(participant) !== getId(user)
-        )
+      ? participants.find((participant) => getId(participant) !== getId(user))
       : null;
 
   const otherUserOnline = otherUser
@@ -57,6 +85,7 @@ export default function InfoPanel({ onClose }) {
       const deletedId = await deleteConversationForMe(conversation._id);
 
       if (deletedId) {
+        setConfirmOpen(false);
         onClose?.();
       }
     } finally {
@@ -207,32 +236,108 @@ export default function InfoPanel({ onClose }) {
       </div>
 
       <Section title="Actions">
-        <button
-          type="button"
-          onClick={handleDeleteConversation}
-          disabled={deletingConversation}
-          aria-label="Delete conversation for me"
-          style={{
-            width: "100%",
-            padding: "9px 12px",
-            borderRadius: "var(--radius-md)",
-            border: "1px solid rgba(239,68,68,0.28)",
-            background: "rgba(239,68,68,0.1)",
-            color: "var(--status-error)",
-            cursor: deletingConversation ? "not-allowed" : "pointer",
-            fontFamily: "var(--font-sans)",
-            fontSize: "0.82rem",
-            fontWeight: 700,
-            opacity: deletingConversation ? 0.65 : 1,
-            textAlign: "left",
-          }}
-        >
-          {deletingConversation
-            ? "Deleting..."
-            : conversation.isGroup
-            ? "Hide conversation"
-            : "Delete conversation"}
-        </button>
+        {!confirmOpen ? (
+          <button
+            type="button"
+            onClick={() => setConfirmOpen(true)}
+            disabled={deletingConversation}
+            aria-label={actionCopy.button}
+            style={{
+              width: "100%",
+              padding: "9px 12px",
+              borderRadius: "var(--radius-md)",
+              border: "1px solid rgba(239,68,68,0.28)",
+              background: "rgba(239,68,68,0.1)",
+              color: "var(--status-error)",
+              cursor: deletingConversation ? "not-allowed" : "pointer",
+              fontFamily: "var(--font-sans)",
+              fontSize: "0.82rem",
+              fontWeight: 700,
+              opacity: deletingConversation ? 0.65 : 1,
+              textAlign: "left",
+            }}
+          >
+            {actionCopy.button}
+          </button>
+        ) : (
+          <div
+            role="alertdialog"
+            aria-label={actionCopy.title}
+            style={{
+              padding: "12px",
+              borderRadius: "var(--radius-lg)",
+              border: "1px solid rgba(239,68,68,0.28)",
+              background:
+                "linear-gradient(135deg, rgba(239,68,68,0.12), rgba(15,23,42,0.45))",
+            }}
+          >
+            <p
+              style={{
+                color: "var(--text-primary)",
+                fontSize: "0.86rem",
+                fontWeight: 800,
+                marginBottom: "6px",
+              }}
+            >
+              {actionCopy.title}
+            </p>
+
+            <p
+              style={{
+                color: "var(--text-muted)",
+                fontSize: "0.76rem",
+                lineHeight: 1.45,
+                marginBottom: "12px",
+              }}
+            >
+              {actionCopy.desc}
+            </p>
+
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                type="button"
+                onClick={handleDeleteConversation}
+                disabled={deletingConversation}
+                style={{
+                  flex: 1,
+                  padding: "8px 10px",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid rgba(239,68,68,0.35)",
+                  background: "rgba(239,68,68,0.18)",
+                  color: "var(--status-error)",
+                  cursor: deletingConversation ? "not-allowed" : "pointer",
+                  fontFamily: "var(--font-sans)",
+                  fontSize: "0.78rem",
+                  fontWeight: 800,
+                  opacity: deletingConversation ? 0.65 : 1,
+                }}
+              >
+                {deletingConversation ? "Working..." : actionCopy.confirm}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setConfirmOpen(false)}
+                disabled={deletingConversation}
+                style={{
+                  flex: 1,
+                  padding: "8px 10px",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border-default)",
+                  background: "var(--bg-overlay)",
+                  color: "var(--text-secondary)",
+                  cursor: deletingConversation ? "not-allowed" : "pointer",
+                  fontFamily: "var(--font-sans)",
+                  fontSize: "0.78rem",
+                  fontWeight: 700,
+                  opacity: deletingConversation ? 0.65 : 1,
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </Section>
 
       {!conversation.isSelf && participants.length > 0 && (
