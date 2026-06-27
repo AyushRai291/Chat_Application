@@ -27,3 +27,6 @@ Thumbs.db
 uploads/
 temp/
 tmp/
+
+# generated local docs
+docs/backend-hinglish-guide/
