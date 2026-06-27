@@ -20,6 +20,8 @@ const SearchIcon = () => (
   </svg>
 );
 
+const getId = (value) => String(value?._id || value || "");
+
 export default function Sidebar() {
   const { user, logout } = useAuth();
 
@@ -31,6 +33,7 @@ export default function Sidebar() {
     selectConversation,
     createSavedConversation,
     error,
+    socketConnected,
   } = useChat();
 
   const [query, setQuery] = useState("");
@@ -134,27 +137,46 @@ export default function Sidebar() {
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowUserSearch(true)}
-            aria-label="New conversation"
-            title="New conversation"
-            style={{
-              background: "var(--bg-overlay)",
-              border: "1px solid var(--border-default)",
-              borderRadius: "var(--radius-md)",
-              width: 32,
-              height: 32,
-              cursor: "pointer",
-              color: "var(--text-secondary)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "1.1rem",
-            }}
-          >
-            +
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <span
+              title={
+                socketConnected
+                  ? "Realtime connected"
+                  : "Realtime disconnected"
+              }
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                background: socketConnected
+                  ? "var(--status-online)"
+                  : "var(--status-offline)",
+                flexShrink: 0,
+              }}
+            />
+
+            <button
+              type="button"
+              onClick={() => setShowUserSearch(true)}
+              aria-label="New conversation"
+              title="New conversation"
+              style={{
+                background: "var(--bg-overlay)",
+                border: "1px solid var(--border-default)",
+                borderRadius: "var(--radius-md)",
+                width: 32,
+                height: 32,
+                cursor: "pointer",
+                color: "var(--text-secondary)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "1.1rem",
+              }}
+            >
+              +
+            </button>
+          </div>
         </div>
 
         <div style={{ padding: "12px 16px" }}>
@@ -285,7 +307,9 @@ export default function Sidebar() {
               <ConversationItem
                 key={conversation._id}
                 conversation={conversation}
-                isActive={selectedConversation?._id === conversation._id}
+                isActive={
+                  getId(selectedConversation) === getId(conversation)
+                }
                 onClick={() => selectConversation(conversation)}
                 currentUserId={user?._id}
               />
@@ -302,7 +326,12 @@ export default function Sidebar() {
             background: "var(--bg-surface)",
           }}
         >
-          <Avatar name={user?.name || "User"} src={user?.avatar} size="sm" online />
+          <Avatar
+            name={user?.name || "User"}
+            src={user?.avatar}
+            size="sm"
+            online={socketConnected}
+          />
 
           <div style={{ flex: 1, minWidth: 0 }}>
             <p
@@ -318,8 +347,15 @@ export default function Sidebar() {
               {user?.name || "User"}
             </p>
 
-            <p style={{ fontSize: "0.73rem", color: "var(--status-online)" }}>
-              ● Online
+            <p
+              style={{
+                fontSize: "0.73rem",
+                color: socketConnected
+                  ? "var(--status-online)"
+                  : "var(--text-muted)",
+              }}
+            >
+              {socketConnected ? "● Online" : "○ Connecting…"}
             </p>
           </div>
 

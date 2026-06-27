@@ -15,4 +15,9 @@ export const conversationService = {
     const { data } = await api.post("/api/conversations", { receiverId });
     return data.conversation;
   },
+
+  async deleteForMe(conversationId) {
+    const { data } = await api.delete(`/api/conversations/${conversationId}/for-me`);
+    return data;
+  },
 };

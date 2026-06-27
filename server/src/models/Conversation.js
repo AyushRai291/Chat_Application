@@ -132,6 +132,15 @@ const conversationSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+    hiddenFor: {
+      type: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+      ],
+      default: [],
+    },
     lastMessage: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Message",
@@ -147,6 +156,7 @@ conversationSchema.index({ conversationKey: 1 }, { unique: true, sparse: true })
 conversationSchema.index({ participants: 1 });
 conversationSchema.index({ admins: 1 });
 conversationSchema.index({ deletedAt: 1 });
+conversationSchema.index({ hiddenFor: 1 });
 conversationSchema.index({ updatedAt: -1 });
 
 const Conversation = mongoose.model("Conversation", conversationSchema);

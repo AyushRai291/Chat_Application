@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useChat } from "../../context/ChatContext";
 import Avatar from "../ui/Avatar";
@@ -21,19 +21,48 @@ function formatLastSeen(dateStr) {
 
 export default function InfoPanel({ onClose }) {
   const { user } = useAuth();
-  const { selectedConversation } = useChat();
+
+  const {
+    selectedConversation,
+    onlineUserIds,
+    socketConnected,
+    deleteConversationForMe,
+  } = useChat();
+  const [deletingConversation, setDeletingConversation] = useState(false);
 
   if (!selectedConversation) return null;
 
-  const conv = selectedConversation;
-  const convName = getConvName(conv, user?._id);
-  const convAvatar = getConvAvatar(conv, user?._id);
-  const participants = conv.participants || [];
+  const conversation = selectedConversation;
+  const conversationName = getConvName(conversation, user?._id);
+  const conversationAvatar = getConvAvatar(conversation, user?._id);
+  const participants = conversation.participants || [];
 
   const otherUser =
-    !conv.isSelf && !conv.isGroup
-      ? participants.find((p) => getId(p) !== getId(user))
+    !conversation.isSelf && !conversation.isGroup
+      ? participants.find(
+          (participant) => getId(participant) !== getId(user)
+        )
       : null;
+
+  const otherUserOnline = otherUser
+    ? onlineUserIds.has(getId(otherUser))
+    : false;
+
+  const handleDeleteConversation = async () => {
+    if (deletingConversation) return;
+
+    setDeletingConversation(true);
+
+    try {
+      const deletedId = await deleteConversationForMe(conversation._id);
+
+      if (deletedId) {
+        onClose?.();
+      }
+    } finally {
+      setDeletingConversation(false);
+    }
+  };
 
   return (
     <aside
@@ -100,7 +129,7 @@ export default function InfoPanel({ onClose }) {
           borderBottom: "1px solid var(--border-subtle)",
         }}
       >
-        {conv.isSelf ? (
+        {conversation.isSelf ? (
           <div
             style={{
               width: 64,
@@ -118,10 +147,10 @@ export default function InfoPanel({ onClose }) {
           </div>
         ) : (
           <Avatar
-            name={convName}
-            src={convAvatar}
+            name={conversationName}
+            src={conversationAvatar}
             size="xl"
-            online={conv.isGroup ? undefined : Boolean(otherUser?.isOnline)}
+            online={conversation.isGroup ? undefined : otherUserOnline}
             style={{ margin: "0 auto 12px" }}
           />
         )}
@@ -133,10 +162,10 @@ export default function InfoPanel({ onClose }) {
             color: "var(--text-primary)",
           }}
         >
-          {convName}
+          {conversationName}
         </p>
 
-        {conv.isSelf && (
+        {conversation.isSelf && (
           <p
             style={{
               fontSize: "0.78rem",
@@ -148,23 +177,23 @@ export default function InfoPanel({ onClose }) {
           </p>
         )}
 
-        {!conv.isSelf && !conv.isGroup && otherUser && (
+        {!conversation.isSelf && !conversation.isGroup && otherUser && (
           <p
             style={{
               fontSize: "0.78rem",
-              color: otherUser.isOnline
+              color: otherUserOnline
                 ? "var(--status-online)"
                 : "var(--text-muted)",
               marginTop: "4px",
             }}
           >
-            {otherUser.isOnline
+            {otherUserOnline
               ? "● Online now"
               : `Last seen ${formatLastSeen(otherUser.lastSeen)}`}
           </p>
         )}
 
-        {conv.isGroup && (
+        {conversation.isGroup && (
           <p
             style={{
               fontSize: "0.78rem",
@@ -177,16 +206,50 @@ export default function InfoPanel({ onClose }) {
         )}
       </div>
 
-      {!conv.isSelf && participants.length > 0 && (
-        <Section title={conv.isGroup ? "Members" : "Participants"}>
+      <Section title="Actions">
+        <button
+          type="button"
+          onClick={handleDeleteConversation}
+          disabled={deletingConversation}
+          aria-label="Delete conversation for me"
+          style={{
+            width: "100%",
+            padding: "9px 12px",
+            borderRadius: "var(--radius-md)",
+            border: "1px solid rgba(239,68,68,0.28)",
+            background: "rgba(239,68,68,0.1)",
+            color: "var(--status-error)",
+            cursor: deletingConversation ? "not-allowed" : "pointer",
+            fontFamily: "var(--font-sans)",
+            fontSize: "0.82rem",
+            fontWeight: 700,
+            opacity: deletingConversation ? 0.65 : 1,
+            textAlign: "left",
+          }}
+        >
+          {deletingConversation
+            ? "Deleting..."
+            : conversation.isGroup
+            ? "Hide conversation"
+            : "Delete conversation"}
+        </button>
+      </Section>
+
+      {!conversation.isSelf && participants.length > 0 && (
+        <Section title={conversation.isGroup ? "Members" : "Participants"}>
           {participants.map((participant) => {
-            const id = getId(participant);
-            const name = participant.name || participant.email || id;
-            const isMe = id === getId(user);
+            const participantId = getId(participant);
+            const participantName =
+              participant.name || participant.email || participantId;
+
+            const isMe = participantId === getId(user);
+            const isOnline = isMe
+              ? socketConnected
+              : onlineUserIds.has(participantId);
 
             return (
               <div
-                key={id}
+                key={participantId}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -195,10 +258,10 @@ export default function InfoPanel({ onClose }) {
                 }}
               >
                 <Avatar
-                  name={name}
+                  name={participantName}
                   src={participant.avatar}
                   size="sm"
-                  online={Boolean(participant.isOnline)}
+                  online={isOnline}
                 />
 
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -212,19 +275,19 @@ export default function InfoPanel({ onClose }) {
                       textOverflow: "ellipsis",
                     }}
                   >
-                    {name}
+                    {participantName}
                     {isMe ? " (you)" : ""}
                   </p>
 
                   <p
                     style={{
                       fontSize: "0.72rem",
-                      color: participant.isOnline
+                      color: isOnline
                         ? "var(--status-online)"
                         : "var(--text-muted)",
                     }}
                   >
-                    {participant.isOnline ? "● Online" : "○ Offline"}
+                    {isOnline ? "● Online" : "○ Offline"}
                   </p>
                 </div>
               </div>
@@ -233,7 +296,7 @@ export default function InfoPanel({ onClose }) {
         </Section>
       )}
 
-      {conv.isSelf && (
+      {conversation.isSelf && (
         <div style={{ flex: 1 }}>
           <EmptyState
             icon="📌"

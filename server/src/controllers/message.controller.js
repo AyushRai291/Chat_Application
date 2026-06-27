@@ -603,7 +603,14 @@ export const sendMessage = asyncHandler(async (req, res) => {
   });
 
   await Conversation.findByIdAndUpdate(conversation._id, {
-    lastMessage: message._id,
+    $set: {
+      lastMessage: message._id,
+    },
+    $pull: {
+      hiddenFor: {
+        $in: conversation.participants,
+      },
+    },
   });
 
   const populatedMessage = await populateMessage(Message.findById(message._id));

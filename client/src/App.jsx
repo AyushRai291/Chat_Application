@@ -35,7 +35,7 @@ function AppRouter() {
   }
 
   return (
-    <ChatProvider>
+    <ChatProvider currentUser={user}>
       <AppShell />
     </ChatProvider>
   );

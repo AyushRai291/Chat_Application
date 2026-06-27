@@ -1,23 +1,99 @@
-import React, { useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useChat } from "../../context/ChatContext";
 import Spinner from "../ui/Spinner";
 
+const TYPING_DEBOUNCE_MS = 1200;
+
 export default function Composer() {
-  const { sendMessage, sendingMessage, selectedConversation } = useChat();
+  const {
+    sendMessage,
+    sendingMessage,
+    selectedConversation,
+    replyTarget,
+    clearReplyTarget,
+    startTyping,
+    stopTyping,
+  } = useChat();
+
   const [text, setText] = useState("");
   const textareaRef = useRef(null);
+  const isTypingRef = useRef(false);
+  const stopTimerRef = useRef(null);
+
+  const conversationId = selectedConversation?._id;
+
+  const clearStopTimer = useCallback(() => {
+    if (stopTimerRef.current) {
+      clearTimeout(stopTimerRef.current);
+      stopTimerRef.current = null;
+    }
+  }, []);
+
+  const emitStop = useCallback(() => {
+    if (!isTypingRef.current || !conversationId) return;
+
+    stopTyping(conversationId);
+    isTypingRef.current = false;
+  }, [conversationId, stopTyping]);
+
+  const emitStart = useCallback(() => {
+    if (isTypingRef.current || !conversationId) return;
+
+    startTyping(conversationId);
+    isTypingRef.current = true;
+  }, [conversationId, startTyping]);
+
+  const scheduleStop = useCallback(() => {
+    clearStopTimer();
+
+    stopTimerRef.current = setTimeout(() => {
+      emitStop();
+    }, TYPING_DEBOUNCE_MS);
+  }, [clearStopTimer, emitStop]);
+
+  useEffect(() => {
+    return () => {
+      clearStopTimer();
+
+      if (isTypingRef.current && conversationId) {
+        stopTyping(conversationId);
+        isTypingRef.current = false;
+      }
+    };
+  }, [clearStopTimer, conversationId, stopTyping]);
+
+  const handleChange = (e) => {
+    const value = e.target.value;
+    setText(value);
+
+    if (!conversationId) return;
+
+    if (!value.trim()) {
+      clearStopTimer();
+      emitStop();
+      return;
+    }
+
+    emitStart();
+    scheduleStop();
+  };
 
   const handleSend = async () => {
     const cleanText = text.trim();
 
-    if (!cleanText || sendingMessage || !selectedConversation) return;
+    if (!cleanText || sendingMessage || !conversationId) return;
+
+    clearStopTimer();
+    emitStop();
 
     const message = await sendMessage({
       text: cleanText,
+      replyTo: replyTarget?._id || null,
     });
 
     if (message) {
       setText("");
+      clearReplyTarget();
       textareaRef.current?.focus();
     }
   };
@@ -27,6 +103,11 @@ export default function Composer() {
       e.preventDefault();
       handleSend();
     }
+  };
+
+  const handleBlur = () => {
+    clearStopTimer();
+    emitStop();
   };
 
   if (!selectedConversation) return null;
@@ -39,6 +120,69 @@ export default function Composer() {
         background: "var(--bg-surface)",
       }}
     >
+      {replyTarget && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            marginBottom: "8px",
+            padding: "8px 10px",
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--border-default)",
+            borderLeft: "3px solid var(--accent-primary)",
+            borderRadius: "var(--radius-md)",
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p
+              style={{
+                color: "var(--accent-secondary)",
+                fontSize: "0.76rem",
+                fontWeight: 700,
+                marginBottom: "2px",
+              }}
+            >
+              {replyTarget.sender?.name || replyTarget.sender?.email || "Unknown"}
+            </p>
+
+            <p
+              style={{
+                color: "var(--text-muted)",
+                fontSize: "0.8rem",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {replyTarget.deletedForEveryone
+                ? "Message was deleted"
+                : replyTarget.text || "Attachment"}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={clearReplyTarget}
+            aria-label="Cancel reply"
+            style={{
+              background: "transparent",
+              border: "1px solid var(--border-default)",
+              borderRadius: "var(--radius-full)",
+              color: "var(--text-muted)",
+              cursor: "pointer",
+              flexShrink: 0,
+              fontSize: "0.8rem",
+              height: 24,
+              lineHeight: 1,
+              width: 24,
+            }}
+          >
+            x
+          </button>
+        </div>
+      )}
+
       <div
         style={{
           display: "flex",
@@ -60,8 +204,9 @@ export default function Composer() {
         <textarea
           ref={textareaRef}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={handleChange}
           onKeyDown={handleKeyDown}
+          onBlur={handleBlur}
           placeholder="Message…"
           aria-label="Type a message"
           rows={1}

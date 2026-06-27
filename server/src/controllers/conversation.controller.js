@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import Conversation from "../models/Conversation.js";
-import "../models/Message.js";
+import Message from "../models/Message.js";
 import User from "../models/User.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { hasUserBlock } from "../utils/blocking.js";
@@ -141,6 +141,24 @@ const emitConversationToParticipants = (conversation, eventName) => {
   });
 };
 
+const emitConversationToUser = (userId, eventName, payload) => {
+  const io = getIO();
+
+  if (!io) {
+    return;
+  }
+
+  io.to(`user:${userId.toString()}`).emit(eventName, payload);
+};
+
+const revealConversationForUser = async (conversationId, userId) => {
+  await Conversation.findByIdAndUpdate(conversationId, {
+    $pull: {
+      hiddenFor: userId,
+    },
+  });
+};
+
 const normalizeGroupName = (groupName) =>
   typeof groupName === "string" ? groupName.trim() : "";
 
@@ -209,6 +227,7 @@ const findOrCreateConversation = async ({
   legacyQuery,
   participants,
   isSelf,
+  revealFor = null,
 }) => {
   let conversation =
     (await Conversation.findOne({ conversationKey })) ||
@@ -218,6 +237,10 @@ const findOrCreateConversation = async ({
     if (!conversation.conversationKey) {
       conversation.conversationKey = conversationKey;
       await conversation.save();
+    }
+
+    if (revealFor) {
+      await revealConversationForUser(conversation._id, revealFor);
     }
 
     return populateConversation(Conversation.findById(conversation._id));
@@ -246,6 +269,7 @@ export const getConversations = asyncHandler(async (req, res) => {
     Conversation.find({
       participants: req.user._id,
       deletedAt: null,
+      hiddenFor: { $ne: req.user._id },
       $or: [
         { isSelf: true },
         { isGroup: true },
@@ -253,9 +277,23 @@ export const getConversations = asyncHandler(async (req, res) => {
       ],
     }).sort({ updatedAt: -1 })
   );
+  const currentUserId = req.user._id.toString();
+  const normalizedConversations = conversations.map((conversation) => {
+    const item = conversation.toObject();
+    const lastMessageDeletedForUser = item.lastMessage?.deletedFor?.some(
+      (userId) => toIdString(userId) === currentUserId
+    );
+
+    return lastMessageDeletedForUser
+      ? {
+          ...item,
+          lastMessage: null,
+        }
+      : item;
+  });
 
   res.status(200).json({
-    conversations,
+    conversations: normalizedConversations,
   });
 });
 
@@ -280,6 +318,7 @@ export const createConversation = asyncHandler(async (req, res) => {
       },
       participants: [currentUserId],
       isSelf: true,
+      revealFor: currentUserId,
     });
 
     return res.status(200).json({
@@ -329,11 +368,61 @@ export const createConversation = asyncHandler(async (req, res) => {
     },
     participants: [currentUserId, receiverId],
     isSelf: false,
+    revealFor: currentUserId,
   });
 
   res.status(200).json({
     conversation,
   });
+});
+
+export const deleteConversationForMe = asyncHandler(async (req, res) => {
+  const { conversationId } = req.params;
+
+  if (!isValidObjectId(conversationId)) {
+    return res.status(400).json({
+      message: "Invalid conversation ID",
+    });
+  }
+
+  const conversation = await Conversation.findOne({
+    _id: conversationId,
+    participants: req.user._id,
+    deletedAt: null,
+  }).select("_id participants");
+
+  if (!conversation) {
+    return res.status(404).json({
+      message: "Conversation not found",
+    });
+  }
+
+  await Promise.all([
+    Message.updateMany(
+      {
+        conversation: conversation._id,
+        deletedFor: { $ne: req.user._id },
+      },
+      {
+        $addToSet: {
+          deletedFor: req.user._id,
+        },
+      }
+    ),
+    Conversation.findByIdAndUpdate(conversation._id, {
+      $addToSet: {
+        hiddenFor: req.user._id,
+      },
+    }),
+  ]);
+
+  const payload = {
+    conversationId: conversation._id.toString(),
+  };
+
+  emitConversationToUser(req.user._id, "conversation:deleted-for-me", payload);
+
+  res.status(200).json(payload);
 });
 
 export const createGroupConversation = asyncHandler(async (req, res) => {

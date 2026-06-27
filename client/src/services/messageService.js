@@ -16,4 +16,27 @@ export const messageService = {
 
     return data.message;
   },
+
+  async updateMessage(messageId, text) {
+    const { data } = await api.patch(`/api/messages/${messageId}`, { text });
+    return data.message || data;
+  },
+
+  async deleteForMe(messageId) {
+    const { data } = await api.delete(`/api/messages/${messageId}/for-me`);
+    return data;
+  },
+
+  async deleteForEveryone(messageId) {
+    const { data } = await api.delete(`/api/messages/${messageId}/for-everyone`);
+    return data.message || data;
+  },
+
+  async toggleReaction(messageId, emoji) {
+    const { data } = await api.post(`/api/messages/${messageId}/reactions`, {
+      emoji,
+    });
+
+    return data.message || data;
+  },
 };

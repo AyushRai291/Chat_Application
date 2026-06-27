@@ -9,14 +9,22 @@ import Avatar from "../ui/Avatar";
 import {
   getConvAvatar,
   getConvName,
-  getConvOnline,
 } from "../chat/ConversationItem";
 
 const getId = (value) => String(value?._id || value || "");
 
 export default function ChatPanel({ onInfoToggle, showInfoPanel }) {
   const { user } = useAuth();
-  const { selectedConversation, messages, loadingMessages, error } = useChat();
+
+  const {
+    selectedConversation,
+    messages,
+    loadingMessages,
+    error,
+    onlineUserIds,
+    typingUsersByConversation,
+  } = useChat();
+
   const endRef = useRef(null);
 
   useEffect(() => {
@@ -37,7 +45,38 @@ export default function ChatPanel({ onInfoToggle, showInfoPanel }) {
 
   const convName = getConvName(selectedConversation, user?._id);
   const convAvatar = getConvAvatar(selectedConversation, user?._id);
-  const isOnline = getConvOnline(selectedConversation, user?._id);
+
+  const otherParticipant =
+    !selectedConversation.isSelf && !selectedConversation.isGroup
+      ? selectedConversation.participants?.find(
+          (participant) => getId(participant) !== getId(user)
+        )
+      : null;
+
+  const isOnline = otherParticipant
+    ? onlineUserIds.has(getId(otherParticipant))
+    : false;
+
+  const typingUsers = (
+    typingUsersByConversation[selectedConversation._id] || []
+  ).filter((typingUser) => getId(typingUser) !== getId(user));
+
+  const typingLabel =
+    typingUsers.length === 1
+      ? `${typingUsers[0].name || typingUsers[0].email || "Someone"} is typing…`
+      : typingUsers.length > 1
+      ? "Several people are typing…"
+      : null;
+
+  const subText = selectedConversation.isSelf
+    ? "Your personal space"
+    : typingLabel
+    ? typingLabel
+    : selectedConversation.isGroup
+    ? `${selectedConversation.participants?.length || 0} members`
+    : isOnline
+    ? "● Online"
+    : "○ Offline";
 
   return (
     <main aria-label="Chat area" style={s.wrap}>
@@ -66,16 +105,15 @@ export default function ChatPanel({ onInfoToggle, showInfoPanel }) {
           <p
             style={{
               fontSize: "0.75rem",
-              color: isOnline ? "var(--status-online)" : "var(--text-muted)",
+              color: typingLabel
+                ? "var(--accent-secondary)"
+                : isOnline
+                ? "var(--status-online)"
+                : "var(--text-muted)",
+              transition: "color 0.2s",
             }}
           >
-            {selectedConversation.isSelf
-              ? "Your personal space"
-              : selectedConversation.isGroup
-              ? `${selectedConversation.participants?.length || 0} members`
-              : isOnline
-              ? "● Online"
-              : "○ Offline"}
+            {subText}
           </p>
         </div>
 
@@ -118,19 +156,19 @@ export default function ChatPanel({ onInfoToggle, showInfoPanel }) {
         )}
 
         {!loadingMessages &&
-          messages.map((msg, index) => {
-            const isOwn = getId(msg.sender) === getId(user);
+          messages.map((message, index) => {
+            const senderId = getId(message.sender);
+            const isOwn = senderId === getId(user);
+
             const prev = messages[index - 1];
-
             const prevSenderId = getId(prev?.sender);
-            const curSenderId = getId(msg.sender);
 
-            const showAvatar = !isOwn && prevSenderId !== curSenderId;
+            const showAvatar = !isOwn && prevSenderId !== senderId;
 
             return (
               <MessageBubble
-                key={msg._id}
-                message={msg}
+                key={message._id}
+                message={message}
                 isOwn={isOwn}
                 showAvatar={showAvatar}
               />
@@ -140,8 +178,61 @@ export default function ChatPanel({ onInfoToggle, showInfoPanel }) {
         <div ref={endRef} />
       </div>
 
+      {typingLabel && (
+        <div style={s.typingBar} aria-live="polite" aria-label={typingLabel}>
+          <TypingDots />
+          <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+            {typingLabel}
+          </span>
+        </div>
+      )}
+
       <Composer />
     </main>
+  );
+}
+
+function TypingDots() {
+  return (
+    <>
+      <style>{`
+        @keyframes aurora-bounce {
+          0%, 80%, 100% {
+            transform: translateY(0);
+            opacity: 0.4;
+          }
+
+          40% {
+            transform: translateY(-4px);
+            opacity: 1;
+          }
+        }
+
+        .aurora-dot {
+          display: inline-block;
+          width: 5px;
+          height: 5px;
+          border-radius: 50%;
+          background: var(--accent-primary);
+          margin-right: 3px;
+          animation: aurora-bounce 1.2s infinite ease-in-out;
+        }
+
+        .aurora-dot:nth-child(2) {
+          animation-delay: 0.2s;
+        }
+
+        .aurora-dot:nth-child(3) {
+          animation-delay: 0.4s;
+        }
+      `}</style>
+
+      <span style={{ display: "inline-flex", alignItems: "center" }}>
+        <span className="aurora-dot" />
+        <span className="aurora-dot" />
+        <span className="aurora-dot" />
+      </span>
+    </>
   );
 }
 
@@ -230,5 +321,14 @@ const s = {
     fontSize: "0.82rem",
     color: "var(--status-error)",
     marginBottom: "12px",
+  },
+  typingBar: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "6px 24px",
+    borderTop: "1px solid var(--border-subtle)",
+    background: "var(--bg-surface)",
+    flexShrink: 0,
   },
 };

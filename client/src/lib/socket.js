@@ -1,28 +1,34 @@
 import { io } from "socket.io-client";
 
-const SOCKET_URL = "http://localhost:5000";
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
 
 let socket = null;
 
-export const connectSocket = () => {
-  if (socket) {
-    return socket;
+export function connectSocket() {
+  if (!socket) {
+    socket = io(SOCKET_URL, {
+      withCredentials: true,
+      transports: ["websocket"],
+      autoConnect: false,
+      reconnection: true,
+    });
   }
 
-  socket = io(SOCKET_URL, {
-    withCredentials: true,
-    transports: ["websocket"],
-    autoConnect: true,
-  });
+  if (!socket.connected) {
+    socket.connect();
+  }
 
   return socket;
-};
+}
 
-export const getSocket = () => socket;
+export function disconnectSocket() {
+  if (!socket) return;
 
-export const disconnectSocket = () => {
-  if (socket) {
-    socket.disconnect();
-    socket = null;
-  }
-};
+  socket.removeAllListeners();
+  socket.disconnect();
+  socket = null;
+}
+
+export function getSocket() {
+  return socket;
+}

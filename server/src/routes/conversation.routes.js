@@ -4,6 +4,7 @@ import {
   archiveGroupConversation,
   createConversation,
   createGroupConversation,
+  deleteConversationForMe,
   deleteGroupConversation,
   demoteGroupAdmin,
   getConversations,
@@ -48,6 +49,7 @@ router.delete(
   removeGroupParticipant
 );
 router.post("/:conversationId/leave", protectRoute, leaveGroupConversation);
+router.delete("/:conversationId/for-me", protectRoute, deleteConversationForMe);
 router.delete("/:conversationId", protectRoute, deleteGroupConversation);
 
 export default router;
