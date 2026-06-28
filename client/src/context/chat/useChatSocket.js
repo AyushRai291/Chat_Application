@@ -57,6 +57,7 @@ export function useChatSocket({
 
     socket.on("connect", () => {
       setSocketConnected(true);
+      reloadConversationsOnce();
       markConversationRead(selectedConvRef.current?._id);
     });
 

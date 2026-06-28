@@ -278,18 +278,45 @@ export const getConversations = asyncHandler(async (req, res) => {
     }).sort({ updatedAt: -1 })
   );
   const currentUserId = req.user._id.toString();
+  const conversationIds = conversations.map((conversation) => conversation._id);
+  const unreadCounts = await Message.aggregate([
+    {
+      $match: {
+        conversation: { $in: conversationIds },
+        sender: { $ne: req.user._id },
+        readBy: { $ne: req.user._id },
+        deletedFor: { $ne: req.user._id },
+        deletedForEveryone: false,
+      },
+    },
+    {
+      $group: {
+        _id: "$conversation",
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+  const unreadCountByConversationId = new Map(
+    unreadCounts.map((item) => [item._id.toString(), item.count])
+  );
   const normalizedConversations = conversations.map((conversation) => {
     const item = conversation.toObject();
     const lastMessageDeletedForUser = item.lastMessage?.deletedFor?.some(
       (userId) => toIdString(userId) === currentUserId
     );
+    const unreadCount =
+      unreadCountByConversationId.get(conversation._id.toString()) || 0;
 
     return lastMessageDeletedForUser
       ? {
           ...item,
           lastMessage: null,
+          unreadCount,
         }
-      : item;
+      : {
+          ...item,
+          unreadCount,
+        };
   });
 
   res.status(200).json({

@@ -20,6 +20,43 @@ import {
   mergeMessageByIdOrClientId,
 } from "./chat/chatHelpers";
 
+function getServerUnreadCount(conversation) {
+  const raw =
+    conversation?.unreadCount ??
+    conversation?.unreadMessagesCount ??
+    conversation?.unread ??
+    0;
+
+  const count = Number(raw);
+  return Number.isFinite(count) && count > 0 ? count : 0;
+}
+
+function buildUnreadMapFromConversations(
+  conversations,
+  selectedConversationId,
+) {
+  const next = {};
+  const selectedId = getId(selectedConversationId);
+
+  conversations.forEach((conversation) => {
+    const id = getId(conversation);
+    const count = getServerUnreadCount(conversation);
+
+    if (!id || id === selectedId || count <= 0) return;
+
+    next[id] = count;
+  });
+
+  return next;
+}
+
+function buildUnreadSnapshot(unreadMap) {
+  return Object.entries(unreadMap)
+    .filter(([, count]) => count > 0)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([id, count]) => `${id}:${count}`)
+    .join("|");
+}
 const ChatContext = createContext(null);
 
 export function ChatProvider({ children }) {
@@ -54,6 +91,8 @@ export function ChatProvider({ children }) {
   const pendingReceiptsRef = useRef(new Map());
   const incomingNotifyKeysRef = useRef(new Set());
   const lastSoundAtRef = useRef(0);
+  const playIncomingSoundRef = useRef(() => {});
+  const loadedUnreadSnapshotRef = useRef("");
 
   selectedConvRef.current = selectedConversation;
   conversationsRef.current = conversations;
@@ -282,8 +321,35 @@ export function ChatProvider({ children }) {
     try {
       const data = await conversationService.getConversations();
       const withPresence = applyOnlineStateToList(data, onlineIdsRef.current);
+      const serverUnreadMap = buildUnreadMapFromConversations(
+        withPresence,
+        selectedConvRef.current?._id,
+      );
 
       setConversations(withPresence);
+
+      setUnreadCountsByConversation((prev) => {
+        const next = { ...serverUnreadMap };
+
+        Object.entries(prev).forEach(([id, count]) => {
+          if (count > 0) {
+            next[id] = Math.max(next[id] || 0, count);
+          }
+        });
+
+        return next;
+      });
+
+      const snapshot = buildUnreadSnapshot(serverUnreadMap);
+
+      if (snapshot && loadedUnreadSnapshotRef.current !== snapshot) {
+        loadedUnreadSnapshotRef.current = snapshot;
+
+        window.setTimeout(() => {
+          playIncomingSoundRef.current?.();
+        }, 350);
+      }
+
       return withPresence;
     } catch (err) {
       setError(getErrorMessage(err, "Failed to load conversations."));
@@ -350,6 +416,8 @@ export function ChatProvider({ children }) {
       // browser blocked audio
     }
   }, []);
+
+  playIncomingSoundRef.current = playIncomingSound;
 
   const notifyIncomingMessage = useCallback(
     (conversationId, message) => {
