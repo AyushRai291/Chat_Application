@@ -6,6 +6,8 @@ import ConfirmDialog from "../ui/ConfirmDialog";
 
 const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢"];
 const PREVIEW_LIMIT = 88;
+const LONG_PRESS_MS = 520;
+const TOUCH_MOVE_CANCEL_PX = 12;
 
 const getId = (value) => String(value?._id || value || "");
 
@@ -177,6 +179,10 @@ export default function MessageBubble({
   const [confirmAction, setConfirmAction] = useState(null);
 
   const editTextareaRef = useRef(null);
+  const touchTimerRef = useRef(null);
+  const touchStartRef = useRef(null);
+  const touchLongPressedRef = useRef(false);
+  const suppressNextClickRef = useRef(false);
 
   const messageId = getId(message);
   const isDeleted = Boolean(message.deletedForEveryone);
@@ -220,6 +226,12 @@ export default function MessageBubble({
       setIsEditing(false);
     }
   }, [isDeleted]);
+
+  useEffect(() => {
+    return () => {
+      window.clearTimeout(touchTimerRef.current);
+    };
+  }, []);
 
   const focusComposer = () => {
     window.setTimeout(() => {
@@ -293,6 +305,75 @@ export default function MessageBubble({
   const actionTop =
     (showSenderName ? 20 : 0) + (message.replyTo && !isDeleted ? 34 : 0);
 
+  const clearLongPressTimer = () => {
+    window.clearTimeout(touchTimerRef.current);
+    touchTimerRef.current = null;
+  };
+
+  const selectFromLongPress = () => {
+    if (!messageId) return;
+
+    touchLongPressedRef.current = true;
+    suppressNextClickRef.current = true;
+    setShowActions(false);
+    setMenuOpen(false);
+    toggleMessageSelection(messageId);
+    navigator.vibrate?.(12);
+
+    window.setTimeout(() => {
+      suppressNextClickRef.current = false;
+    }, 320);
+  };
+
+  const handleTouchStart = (event) => {
+    if (!messageId || isEditing) return;
+
+    const touch = event.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+    touchLongPressedRef.current = false;
+    clearLongPressTimer();
+
+    touchTimerRef.current = window.setTimeout(
+      selectFromLongPress,
+      LONG_PRESS_MS
+    );
+  };
+
+  const handleTouchMove = (event) => {
+    const start = touchStartRef.current;
+    const touch = event.touches[0];
+    if (!start || !touch) return;
+
+    const moved =
+      Math.abs(touch.clientX - start.x) > TOUCH_MOVE_CANCEL_PX ||
+      Math.abs(touch.clientY - start.y) > TOUCH_MOVE_CANCEL_PX;
+
+    if (moved) clearLongPressTimer();
+  };
+
+  const handleTouchEnd = () => {
+    const wasLongPressed = touchLongPressedRef.current;
+    clearLongPressTimer();
+
+    if (!wasLongPressed && canUseActions && !isSelectionMode) {
+      setShowActions(true);
+    }
+  };
+
+  const handleContextMenu = (event) => {
+    if (!messageId || isEditing) return;
+
+    event.preventDefault();
+    suppressNextClickRef.current = true;
+    setShowActions(false);
+    setMenuOpen(false);
+    toggleMessageSelection(messageId);
+
+    window.setTimeout(() => {
+      suppressNextClickRef.current = false;
+    }, 320);
+  };
+
   return (
     <>
       <div
@@ -304,6 +385,11 @@ export default function MessageBubble({
           cursor: isSelectionMode ? "pointer" : "default",
         }}
         onClick={() => {
+          if (suppressNextClickRef.current) {
+            suppressNextClickRef.current = false;
+            return;
+          }
+
           if (isSelectionMode && messageId) {
             toggleMessageSelection(messageId);
           }
@@ -315,9 +401,11 @@ export default function MessageBubble({
           setShowActions(false);
           setMenuOpen(false);
         }}
-        onTouchStart={() => {
-          if (canUseActions) setShowActions(true);
-        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={clearLongPressTimer}
+        onContextMenu={handleContextMenu}
         onFocus={() => {
           if (canUseActions) setShowActions(true);
         }}

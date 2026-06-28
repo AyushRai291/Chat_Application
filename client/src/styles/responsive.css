@@ -1,0 +1,293 @@
+﻿@media (min-width: 1500px) {
+  .aurora-chat__messages-inner,
+  .aurora-composer__form,
+  .aurora-composer__reply {
+    max-width: 940px;
+  }
+}
+
+@media (max-width: 768px) {
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100dvh;
+    min-height: 100dvh;
+    overflow: hidden;
+  }
+
+  body {
+    overscroll-behavior: none;
+  }
+
+  .aurora-shell {
+    display: block;
+    width: 100%;
+    height: 100dvh;
+    min-height: 100dvh;
+    overflow: hidden;
+  }
+
+  .aurora-sidebar-wrap {
+    display: none;
+    width: 100%;
+    height: 100dvh;
+    min-height: 0;
+  }
+
+  .aurora-sidebar-wrap.mobile-visible {
+    display: block;
+  }
+
+  .aurora-sidebar {
+    width: 100% !important;
+    max-width: none !important;
+    height: 100dvh;
+    min-height: 0;
+    border-right: 0;
+    padding: 10px 12px calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .aurora-sidebar__top {
+    flex-shrink: 0;
+    padding: 10px;
+    border-radius: 20px;
+  }
+
+  .aurora-sidebar__utility {
+    flex-shrink: 0;
+  }
+
+  .aurora-sidebar__list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 10px;
+  }
+
+  .aurora-sidebar__profile {
+    flex-shrink: 0;
+    margin-top: auto;
+    margin-bottom: env(safe-area-inset-bottom);
+  }
+
+  .aurora-conv {
+    min-height: 64px;
+    padding: 10px 11px;
+    touch-action: manipulation;
+  }
+
+  .aurora-main {
+    display: none;
+    width: 100%;
+    height: 100dvh;
+    min-height: 0;
+  }
+
+  .aurora-main.mobile-visible {
+    display: flex;
+  }
+
+  .aurora-content {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .aurora-mobile-bar {
+    display: flex !important;
+    padding-top: max(10px, env(safe-area-inset-top));
+  }
+
+  .aurora-chat,
+  .aurora-chat-empty {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .aurora-chat__header {
+    height: 62px;
+    padding: 0 12px;
+  }
+
+  .aurora-chat__header .aurora-avatar {
+    flex-shrink: 0;
+  }
+
+  .aurora-chat__title {
+    font-size: 0.94rem;
+  }
+
+  .aurora-chat__messages {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 16px 10px 18px;
+  }
+
+  .aurora-chat__messages-inner {
+    width: 100%;
+  }
+
+  .aurora-chat__selection {
+    gap: 8px;
+    padding: 8px 10px;
+    overflow-x: auto;
+  }
+
+  .aurora-chat__selection-text {
+    white-space: nowrap;
+  }
+
+  .aurora-chat__danger-btn {
+    flex-shrink: 0;
+    height: 36px;
+  }
+
+  .aurora-new-messages {
+    bottom: calc(88px + env(safe-area-inset-bottom));
+  }
+
+  .aurora-typing {
+    padding: 6px 14px;
+  }
+
+  .aurora-msg-row {
+    gap: 6px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .aurora-msg-avatar-slot {
+    width: 24px;
+  }
+
+  .aurora-msg-stack {
+    max-width: min(84%, 560px);
+  }
+
+  .aurora-msg-action-btn {
+    width: 34px;
+    height: 34px;
+    opacity: 1;
+  }
+
+  .aurora-msg-menu {
+    position: fixed;
+    left: 10px !important;
+    right: 10px !important;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    top: auto;
+    min-width: 0;
+    max-height: min(70dvh, 430px);
+    overflow-y: auto;
+    border-radius: 20px;
+    padding: 10px;
+  }
+
+  .aurora-msg-menu-item {
+    min-height: 44px;
+    align-items: center;
+    font-size: 0.86rem;
+  }
+
+  .aurora-msg-menu-reactions {
+    justify-content: space-between;
+  }
+
+  .aurora-msg-menu-emoji {
+    width: 40px;
+    height: 40px;
+    font-size: 1.1rem;
+  }
+
+  .aurora-msg-edit-area {
+    min-width: min(260px, 72vw);
+  }
+
+  .aurora-composer {
+    flex-shrink: 0;
+    padding: 9px 10px calc(12px + env(safe-area-inset-bottom));
+  }
+
+  .aurora-composer__reply {
+    margin: 0 2px 8px;
+  }
+
+  .aurora-composer__form {
+    max-width: none;
+  }
+
+  .aurora-composer__box {
+    min-height: 50px;
+    border-radius: 24px;
+    padding: 7px 7px 7px 13px;
+  }
+
+  .aurora-composer__textarea {
+    font-size: 16px;
+    max-height: 116px;
+  }
+
+  .aurora-composer__send {
+    width: 40px;
+    height: 40px;
+  }
+
+  .aurora-composer__hint {
+    display: none;
+  }
+
+  .aurora-info {
+    position: fixed;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 100;
+    width: min(88vw, 340px) !important;
+    max-width: 340px;
+    transform: translateX(100%);
+    transition: transform 0.25s cubic-bezier(.4,0,.2,1);
+  }
+
+  .aurora-info.open {
+    transform: translateX(0);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .aurora-info > aside {
+    width: 100% !important;
+    height: 100%;
+  }
+
+  .aurora-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 99;
+  }
+
+  .aurora-dialog-card {
+    width: min(440px, calc(100vw - 24px));
+  }
+
+  .aurora-dialog-actions {
+    flex-direction: column-reverse;
+  }
+
+  .aurora-dialog-btn {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

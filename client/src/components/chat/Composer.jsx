@@ -63,6 +63,7 @@ export default function Composer() {
   const textareaRef = useRef(null);
   const isTypingRef = useRef(false);
   const stopTimerRef = useRef(null);
+  const sentFromTouchRef = useRef(false);
 
   const conversationId = selectedConversation?._id;
 
@@ -181,6 +182,28 @@ export default function Composer() {
     handleSend();
   };
 
+  const preventSendBlur = (event) => {
+    if (!text.trim() || sendingMessage) return;
+    event.preventDefault();
+  };
+
+  const handleSendTouchEnd = (event) => {
+    if (!text.trim() || sendingMessage) return;
+
+    event.preventDefault();
+    sentFromTouchRef.current = true;
+    handleSend();
+
+    window.setTimeout(() => {
+      sentFromTouchRef.current = false;
+    }, 250);
+  };
+
+  const handleSendClick = () => {
+    if (sentFromTouchRef.current) return;
+    handleSend();
+  };
+
   const handleKeyDown = (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
@@ -236,11 +259,15 @@ export default function Composer() {
           />
 
           <button
-            type="submit"
+            type="button"
             className="aurora-composer__send"
             disabled={!text.trim() || sendingMessage}
             aria-label="Send message"
             title="Send message"
+            onMouseDown={preventSendBlur}
+            onTouchStart={preventSendBlur}
+            onTouchEnd={handleSendTouchEnd}
+            onClick={handleSendClick}
           >
             {sendingMessage ? <Spinner size={16} color="#fff" /> : <SendIcon />}
           </button>

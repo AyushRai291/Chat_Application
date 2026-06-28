@@ -1,0 +1,178 @@
+﻿.aurora-composer {
+  flex-shrink: 0;
+  padding: 10px 24px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.055);
+  background:
+    linear-gradient(180deg, rgba(7, 11, 20, 0), rgba(7, 11, 20, 0.88) 34%),
+    rgba(7, 11, 20, 0.62);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.aurora-composer__reply {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: 0 auto 10px;
+  max-width: 900px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-left: 3px solid var(--accent-primary);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(139, 92, 246, 0.14), transparent 34%),
+    rgba(255, 255, 255, 0.04);
+  box-shadow: 0 10px 28px rgba(2, 8, 23, 0.22);
+}
+
+.aurora-composer__reply-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.aurora-composer__reply-name {
+  margin: 0 0 2px;
+  color: var(--accent-secondary);
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.aurora-composer__reply-text {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aurora-composer__reply-close {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text-muted);
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard);
+}
+
+.aurora-composer__reply-close:hover {
+  transform: translateY(-1px);
+  color: var(--text-primary);
+  border-color: var(--border-default);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.aurora-composer__form {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.aurora-composer__box {
+  position: relative;
+  min-height: 54px;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 8px 9px 8px 16px;
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(139, 92, 246, 0.12), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.065), rgba(255, 255, 255, 0.035)),
+    rgba(15, 23, 42, 0.88);
+  box-shadow:
+    0 12px 36px rgba(2, 8, 23, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  transition:
+    border-color var(--dur-med) var(--ease-standard),
+    box-shadow var(--dur-med) var(--ease-standard),
+    background var(--dur-med) var(--ease-standard);
+}
+
+.aurora-composer__box:focus-within {
+  border-color: rgba(34, 211, 238, 0.36);
+  box-shadow:
+    0 22px 58px rgba(2, 8, 23, 0.42),
+    0 0 0 4px rgba(34, 211, 238, 0.07),
+    0 0 34px rgba(139, 92, 246, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.aurora-composer__textarea {
+  flex: 1;
+  min-width: 0;
+  max-height: 120px;
+  resize: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  padding: 7px 0;
+  overflow-y: hidden;
+}
+
+.aurora-composer__textarea::placeholder {
+  color: rgba(125, 138, 165, 0.74);
+}
+
+.aurora-composer__send {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  color: #fff;
+  background: var(--accent-gradient);
+  box-shadow:
+    0 12px 28px rgba(139, 92, 246, 0.24),
+    0 0 18px rgba(34, 211, 238, 0.12);
+  transition:
+    transform var(--dur-fast) var(--ease-standard),
+    opacity var(--dur-fast) var(--ease-standard),
+    filter var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-med) var(--ease-standard);
+}
+
+.aurora-composer__send:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+  box-shadow:
+    0 16px 36px rgba(139, 92, 246, 0.3),
+    0 0 24px rgba(34, 211, 238, 0.16);
+}
+
+.aurora-composer__send:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.aurora-composer__send:disabled {
+  opacity: 0.44;
+  cursor: not-allowed;
+  filter: grayscale(0.15);
+  background: rgba(255, 255, 255, 0.075);
+  color: var(--text-muted);
+  box-shadow: none;
+}
+
+.aurora-composer__hint {
+  margin: 6px 18px 0;
+  color: var(--text-quiet);
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  opacity: 0.68;
+}
+
