@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useChat } from "../../context/ChatContext";
 import { uploadService } from "../../services/uploadService";
 import Spinner from "../ui/Spinner";
+import { formatRecordingTime, useVoiceRecorder } from "./useVoiceRecorder";
 
 const TYPING_DEBOUNCE_MS = 1200;
 const MAX_TEXTAREA_HEIGHT = 120;
@@ -67,6 +68,40 @@ function AttachIcon() {
   );
 }
 
+function MicIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+      <path d="M12 19v3" />
+    </svg>
+  );
+}
+
+function StopIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <rect x="6" y="6" width="12" height="12" rx="2" />
+    </svg>
+  );
+}
+
 function formatFileSize(size = 0) {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
@@ -88,6 +123,17 @@ export default function Composer() {
   const [filePreviewUrl, setFilePreviewUrl] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const {
+    recording,
+    recordedFile,
+    recordedUrl,
+    recordingSeconds,
+    recordingError,
+    startRecording,
+    stopRecording,
+    cancelRecording,
+    clearRecording,
+  } = useVoiceRecorder();
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
   const isTypingRef = useRef(false);
@@ -200,19 +246,27 @@ export default function Composer() {
   };
 
   const handleFileChange = (event) => {
-    setSelectedFile(event.target.files?.[0] || null);
+    const file = event.target.files?.[0] || null;
+
+    clearRecording();
+    setSelectedFile(file);
     setUploadError("");
   };
 
   const handleSend = async () => {
     const cleanText = text.trim();
-
-    if ((!cleanText && !selectedFile) || uploading || !conversationId) {
+    const fileToSend = selectedFile || recordedFile;
+    if (
+      (!cleanText && !fileToSend) ||
+      uploading ||
+      recording ||
+      !conversationId
+    ) {
       return;
     }
 
     const oldReplyTarget = replyTarget;
-    const oldSelectedFile = selectedFile;
+    const oldSelectedFile = fileToSend;
 
     clearStopTimer();
     emitStop();
@@ -243,6 +297,7 @@ export default function Composer() {
     setText("");
     clearReplyTarget();
     clearSelectedFile();
+    clearRecording();
     requestAnimationFrame(resizeTextarea);
 
     await sendMessage({
@@ -295,8 +350,9 @@ export default function Composer() {
   };
 
   if (!selectedConversation) return null;
-
-  const hasSendableContent = Boolean(text.trim() || selectedFile);
+  const hasSendableContent = Boolean(
+    text.trim() || selectedFile || recordedFile,
+  );
   const isBusy = uploading;
 
   return (
@@ -362,9 +418,36 @@ export default function Composer() {
           </div>
         )}
 
+        {recordedFile && recordedUrl && (
+          <div className="aurora-composer__voice-preview">
+            <div className="aurora-composer__voice-dot" aria-hidden="true" />
+
+            <audio
+              src={recordedUrl}
+              controls
+              className="aurora-composer__voice-audio"
+            />
+
+            <button
+              type="button"
+              className="aurora-composer__attachment-remove"
+              onClick={clearRecording}
+              aria-label="Remove voice recording"
+            >
+              {"\u00D7"}
+            </button>
+          </div>
+        )}
+
         {uploadError && (
           <p className="aurora-composer__error" role="alert">
             {uploadError}
+          </p>
+        )}
+
+        {recordingError && (
+          <p className="aurora-composer__error" role="alert">
+            {recordingError}
           </p>
         )}
 
@@ -388,6 +471,18 @@ export default function Composer() {
             <AttachIcon />
           </button>
 
+          <button
+            type="button"
+            className="aurora-composer__mic"
+            onClick={recording ? stopRecording : startRecording}
+            aria-label={recording ? "Stop recording" : "Record voice message"}
+            title={recording ? "Stop recording" : "Record voice message"}
+            disabled={isBusy}
+            data-recording={recording ? "true" : undefined}
+          >
+            {recording ? <StopIcon /> : <MicIcon />}
+          </button>
+
           <textarea
             id="aurora-composer-input"
             ref={textareaRef}
@@ -396,7 +491,11 @@ export default function Composer() {
             onChange={handleChange}
             onKeyDown={handleKeyDown}
             onBlur={handleBlur}
-            placeholder="Write a message..."
+            placeholder={
+              recording
+                ? `Recording ${formatRecordingTime(recordingSeconds)}...`
+                : "Write a message..."
+            }
             aria-label="Type a message"
             rows={1}
           />
@@ -417,7 +516,9 @@ export default function Composer() {
         </div>
 
         <p className="aurora-composer__hint">
-          Enter to send · Shift + Enter for new line
+          {recording
+            ? `Recording ${formatRecordingTime(recordingSeconds)} · tap stop to preview`
+            : "Enter to send · Shift + Enter for new line"}
         </p>
       </form>
     </div>

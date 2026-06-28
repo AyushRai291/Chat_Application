@@ -15,11 +15,30 @@ const startServer = async () => {
     await connectDB();
 
     const httpServer = http.createServer(app);
-
     setupSocket(httpServer);
 
-    httpServer.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
+    httpServer.on("error", (err) => {
+      if (err && err.code === "EADDRINUSE") {
+        console.error(
+          `Port ${PORT} already in use. Is another server running?`,
+        );
+      } else {
+        console.error("HTTP server error:", err);
+      }
+      process.exit(1);
+    });
+
+    httpServer.listen(PORT, "127.0.0.1", () => {
+      console.log(`Server running on http://127.0.0.1:${PORT}`);
+    });
+
+    process.on("unhandledRejection", (reason) => {
+      console.error("Unhandled Rejection:", reason);
+    });
+
+    process.on("uncaughtException", (err) => {
+      console.error("Uncaught Exception:", err);
+      process.exit(1);
     });
   } catch (err) {
     console.error("Server startup failed:", err.message);
