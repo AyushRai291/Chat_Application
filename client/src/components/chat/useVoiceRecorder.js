@@ -146,7 +146,6 @@ export function useVoiceRecorder() {
     recordingError,
     startRecording,
     stopRecording,
-    cancelRecording,
     clearRecording,
   };
 }

@@ -3,110 +3,18 @@ import { useChat } from "../../context/ChatContext";
 import { uploadService } from "../../services/uploadService";
 import Spinner from "../ui/Spinner";
 import { formatRecordingTime, useVoiceRecorder } from "./useVoiceRecorder";
+import AttachmentPreview from "./composer/AttachmentPreview";
+import {
+  AttachIcon,
+  MicIcon,
+  SendIcon,
+  StopIcon,
+} from "./composer/ComposerIcons";
+import ReplyPreviewBar from "./composer/ReplyPreviewBar";
+import VoicePreview from "./composer/VoicePreview";
 
 const TYPING_DEBOUNCE_MS = 1200;
 const MAX_TEXTAREA_HEIGHT = 120;
-const PREVIEW_LIMIT = 88;
-
-function trimPreview(value, fallback = "") {
-  const clean = String(value || "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (!clean) return fallback;
-  if (clean.length <= PREVIEW_LIMIT) return clean;
-
-  return `${clean.slice(0, PREVIEW_LIMIT - 3)}...`;
-}
-
-function getSenderName(sender) {
-  return sender?.name || sender?.email || "Unknown";
-}
-
-function getReplyPreview(message) {
-  if (!message) return "";
-  if (message.deletedForEveryone) return "Message deleted";
-  if (message.text) return trimPreview(message.text);
-  if (message.attachments?.length) return "Attachment";
-  return "Message";
-}
-
-function SendIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M22 2 11 13" />
-      <path d="m22 2-7 20-4-9-9-4Z" />
-    </svg>
-  );
-}
-
-function AttachIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="m21.44 11.05-8.49 8.49a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-    </svg>
-  );
-}
-
-function MicIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-      <path d="M12 19v3" />
-    </svg>
-  );
-}
-
-function StopIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden="true"
-    >
-      <rect x="6" y="6" width="12" height="12" rx="2" />
-    </svg>
-  );
-}
-
-function formatFileSize(size = 0) {
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 export default function Composer() {
   const {
@@ -131,7 +39,6 @@ export default function Composer() {
     recordingError,
     startRecording,
     stopRecording,
-    cancelRecording,
     clearRecording,
   } = useVoiceRecorder();
   const textareaRef = useRef(null);
@@ -357,87 +264,23 @@ export default function Composer() {
 
   return (
     <div className="aurora-composer">
-      {replyTarget && (
-        <div className="aurora-composer__reply">
-          <div className="aurora-composer__reply-body">
-            <p className="aurora-composer__reply-name">
-              {getSenderName(replyTarget.sender)}
-            </p>
-
-            <p className="aurora-composer__reply-text">
-              {getReplyPreview(replyTarget)}
-            </p>
-          </div>
-
-          <button
-            type="button"
-            className="aurora-composer__reply-close"
-            onClick={clearReplyTarget}
-            aria-label="Cancel reply"
-          >
-            ×
-          </button>
-        </div>
-      )}
+      <ReplyPreviewBar
+        replyTarget={replyTarget}
+        onCancel={clearReplyTarget}
+      />
 
       <form className="aurora-composer__form" onSubmit={handleSubmit}>
-        {selectedFile && (
-          <div className="aurora-composer__attachment">
-            {filePreviewUrl ? (
-              <img
-                src={filePreviewUrl}
-                alt={selectedFile.name}
-                className="aurora-composer__attachment-img"
-              />
-            ) : (
-              <div
-                className="aurora-composer__attachment-icon"
-                aria-hidden="true"
-              >
-                {"\u{1F4CE}"}
-              </div>
-            )}
+        <AttachmentPreview
+          selectedFile={selectedFile}
+          filePreviewUrl={filePreviewUrl}
+          onRemove={clearSelectedFile}
+        />
 
-            <div className="aurora-composer__attachment-body">
-              <p className="aurora-composer__attachment-name">
-                {selectedFile.name}
-              </p>
-              <p className="aurora-composer__attachment-meta">
-                {formatFileSize(selectedFile.size)}
-              </p>
-            </div>
-
-            <button
-              type="button"
-              className="aurora-composer__attachment-remove"
-              onClick={clearSelectedFile}
-              aria-label="Remove selected file"
-            >
-              {"\u00D7"}
-            </button>
-          </div>
-        )}
-
-        {recordedFile && recordedUrl && (
-          <div className="aurora-composer__voice-preview">
-            <div className="aurora-composer__voice-dot" aria-hidden="true" />
-
-            <audio
-              src={recordedUrl}
-              controls
-              className="aurora-composer__voice-audio"
-            />
-
-            <button
-              type="button"
-              className="aurora-composer__attachment-remove"
-              onClick={clearRecording}
-              aria-label="Remove voice recording"
-            >
-              {"\u00D7"}
-            </button>
-          </div>
-        )}
+        <VoicePreview
+          recordedFile={recordedFile}
+          recordedUrl={recordedUrl}
+          onRemove={clearRecording}
+        />
 
         {uploadError && (
           <p className="aurora-composer__error" role="alert">

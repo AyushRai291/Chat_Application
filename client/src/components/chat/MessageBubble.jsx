@@ -1,251 +1,22 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import Avatar from "../ui/Avatar";
-import Spinner from "../ui/Spinner";
 import { useChat } from "../../context/ChatContext";
 import ConfirmDialog from "../ui/ConfirmDialog";
+import AttachmentView from "./messages/AttachmentView";
+import ImageViewer from "./messages/ImageViewer";
+import MessageActionsMenu from "./messages/MessageActionsMenu";
+import MessageEditForm from "./messages/MessageEditForm";
+import MessageMeta from "./messages/MessageMeta";
+import ReplyPreview from "./messages/ReplyPreview";
+import {
+  getBubbleRadius,
+  getId,
+  getReactionCounts,
+  getSenderName,
+} from "./messages/messageBubbleUtils";
 
-const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢"];
-const PREVIEW_LIMIT = 88;
 const LONG_PRESS_MS = 520;
 const TOUCH_MOVE_CANCEL_PX = 12;
-
-const getId = (value) => String(value?._id || value || "");
-
-function trimPreview(value, fallback = "") {
-  const clean = String(value || "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (!clean) return fallback;
-  if (clean.length <= PREVIEW_LIMIT) return clean;
-
-  return `${clean.slice(0, PREVIEW_LIMIT - 3)}...`;
-}
-
-function getSenderName(sender) {
-  return sender?.name || sender?.email || "Unknown";
-}
-
-function getReplyPreview(message) {
-  if (!message) return "";
-  if (message.deletedForEveryone) return "Message deleted";
-  if (message.text) return trimPreview(message.text);
-  if (message.attachments?.length) return "Attachment";
-  return "Message";
-}
-
-function getBubbleRadius(isOwn, isGroupStart, isGroupEnd) {
-  const xl = "var(--radius-xl)";
-  const md = "var(--radius-md)";
-  const sm = "var(--radius-sm)";
-
-  if (isOwn) {
-    if (isGroupStart && isGroupEnd) return `${xl} ${xl} ${sm} ${xl}`;
-    if (isGroupStart) return `${xl} ${xl} ${md} ${xl}`;
-    if (isGroupEnd) return `${xl} ${md} ${sm} ${xl}`;
-    return `${xl} ${md} ${md} ${xl}`;
-  }
-
-  if (isGroupStart && isGroupEnd) return `${xl} ${xl} ${xl} ${sm}`;
-  if (isGroupStart) return `${xl} ${xl} ${xl} ${md}`;
-  if (isGroupEnd) return `${md} ${xl} ${xl} ${sm}`;
-  return `${md} ${xl} ${xl} ${md}`;
-}
-
-function getReactionCounts(reactions = []) {
-  const counts = new Map();
-
-  reactions.forEach((reaction) => {
-    if (!reaction?.emoji) return;
-    counts.set(reaction.emoji, (counts.get(reaction.emoji) || 0) + 1);
-  });
-
-  return Array.from(counts, ([emoji, count]) => ({ emoji, count }));
-}
-
-function formatTime(dateStr) {
-  if (!dateStr) return "";
-
-  const date = new Date(dateStr);
-  if (Number.isNaN(date.getTime())) return "";
-
-  return date.toLocaleTimeString("en-IN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-}
-
-function StatusLabel({ status }) {
-  const map = {
-    read: "✓✓",
-    delivered: "✓✓",
-    sent: "✓",
-  };
-
-  return (
-    <span className="aurora-msg-status" data-status={status}>
-      {map[status] || "✓"}
-    </span>
-  );
-}
-
-function MenuItem({ children, onClick, disabled, danger = false }) {
-  return (
-    <button
-      type="button"
-      role="menuitem"
-      className="aurora-msg-menu-item"
-      data-danger={danger ? "true" : undefined}
-      onClick={onClick}
-      disabled={disabled}
-    >
-      {children}
-    </button>
-  );
-}
-
-function getAttachmentUrl(url) {
-  if (!url) return "";
-  if (/^https?:\/\//i.test(url)) return url;
-
-  const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-  return `${baseUrl}${url.startsWith("/") ? url : `/${url}`}`;
-}
-
-function ImageViewer({ image, onClose }) {
-  useEffect(() => {
-    if (!image) return undefined;
-
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") onClose();
-    };
-
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = "";
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [image, onClose]);
-
-  if (!image) return null;
-
-  return createPortal(
-    <div
-      className="aurora-image-viewer"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Image preview"
-      onClick={onClose}
-    >
-      <div
-        className="aurora-image-viewer__topbar"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <p className="aurora-image-viewer__title">{image.name}</p>
-
-        <div className="aurora-image-viewer__actions">
-          <a
-            href={image.url}
-            target="_blank"
-            rel="noreferrer"
-            className="aurora-image-viewer__btn"
-          >
-            Open
-          </a>
-
-          <a
-            href={image.url}
-            download={image.name}
-            className="aurora-image-viewer__btn"
-          >
-            Download
-          </a>
-
-          <button
-            type="button"
-            className="aurora-image-viewer__close"
-            onClick={onClose}
-            aria-label="Close image preview"
-          >
-            ×
-          </button>
-        </div>
-      </div>
-
-      <div className="aurora-image-viewer__stage">
-        <img
-          src={image.url}
-          alt={image.name}
-          className="aurora-image-viewer__img"
-          onClick={(event) => event.stopPropagation()}
-        />
-      </div>
-    </div>,
-    document.body,
-  );
-}
-
-function AttachmentView({ attachment, onImageOpen }) {
-  const fileType = attachment.fileType || attachment.type || "";
-  const url = getAttachmentUrl(attachment.url);
-  const name = attachment.fileName || attachment.name || "Attachment";
-
-  if (!url) return null;
-
-  if (fileType.startsWith("image/")) {
-    return (
-      <button
-        type="button"
-        className="aurora-attachment-img-btn"
-        onClick={(event) => {
-          event.stopPropagation();
-          onImageOpen({ url, name });
-        }}
-        aria-label={`Open image ${name}`}
-      >
-        <img src={url} alt={name} className="aurora-attachment-img" />
-      </button>
-    );
-  }
-
-  if (fileType.startsWith("video/")) {
-    return <video src={url} controls className="aurora-attachment-video" />;
-  }
-
-  if (fileType.startsWith("audio/")) {
-    return <audio src={url} controls className="aurora-attachment-audio" />;
-  }
-
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noreferrer"
-      className="aurora-attachment-file"
-      onClick={(event) => event.stopPropagation()}
-    >
-      📎 {name}
-    </a>
-  );
-}
-
-function ReplyPreview({ replyTo, isOwn }) {
-  if (!replyTo) return null;
-
-  return (
-    <div className="aurora-msg-reply" data-own={isOwn ? "true" : undefined}>
-      <span className="aurora-msg-reply-name">
-        {getSenderName(replyTo.sender)}
-      </span>
-
-      <span className="aurora-msg-reply-text">{getReplyPreview(replyTo)}</span>
-    </div>
-  );
-}
 
 export default function MessageBubble({
   message,
@@ -525,134 +296,26 @@ export default function MessageBubble({
           )}
 
           {showActionTrigger && (
-            <div
-              className="aurora-msg-actions"
-              style={{
-                top: actionTop,
-                ...(isOwn ? { left: -40 } : { right: -40 }),
-              }}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <button
-                type="button"
-                className="aurora-msg-action-btn"
-                aria-label="Message actions"
-                aria-expanded={menuOpen}
-                onClick={() => setMenuOpen((open) => !open)}
-                disabled={Boolean(busyAction)}
-              >
-                ⋯
-              </button>
-
-              {menuOpen && (
-                <div
-                  role="menu"
-                  className="aurora-msg-menu"
-                  style={isOwn ? { right: 0 } : { left: 0 }}
-                >
-                  <MenuItem
-                    disabled={Boolean(busyAction)}
-                    onClick={() => {
-                      if (busyAction) return;
-                      toggleMessageSelection(message._id);
-                      setMenuOpen(false);
-                    }}
-                  >
-                    {isSelected ? "Unselect" : "Select"}
-                  </MenuItem>
-
-                  {!isDeleted && (
-                    <>
-                      <div className="aurora-msg-menu-reactions">
-                        {REACTION_EMOJIS.map((emoji) => (
-                          <button
-                            key={emoji}
-                            type="button"
-                            className="aurora-msg-menu-emoji"
-                            onClick={() =>
-                              runAction(`reaction-${emoji}`, () =>
-                                toggleReaction(message._id, emoji),
-                              )
-                            }
-                            disabled={Boolean(busyAction)}
-                            aria-label={`React with ${emoji}`}
-                          >
-                            {emoji}
-                          </button>
-                        ))}
-                      </div>
-
-                      <MenuItem
-                        disabled={Boolean(busyAction)}
-                        onClick={() => {
-                          if (busyAction) return;
-
-                          setReplyTarget(message);
-                          setMenuOpen(false);
-                          focusComposer();
-                        }}
-                      >
-                        Reply
-                      </MenuItem>
-
-                      {canEdit && (
-                        <MenuItem
-                          disabled={Boolean(busyAction)}
-                          onClick={() => {
-                            if (busyAction) return;
-
-                            setEditText(message.text || "");
-                            setIsEditing(true);
-                            setMenuOpen(false);
-                          }}
-                        >
-                          Edit
-                        </MenuItem>
-                      )}
-                    </>
-                  )}
-
-                  <MenuItem
-                    danger
-                    disabled={Boolean(busyAction)}
-                    onClick={() => {
-                      setConfirmAction({
-                        type: "delete-me",
-                        title: isDeleted
-                          ? "Remove deleted message?"
-                          : "Delete message for you?",
-                        description: isDeleted
-                          ? "This deleted-message placeholder will disappear only from your chat."
-                          : "This message will be removed only from your chat. The other user will still keep it.",
-                        confirmText: isDeleted ? "Remove" : "Delete",
-                      });
-                      setMenuOpen(false);
-                    }}
-                  >
-                    {isDeleted ? "Remove for me" : "Delete for me"}
-                  </MenuItem>
-
-                  {canDeleteEveryone && (
-                    <MenuItem
-                      danger
-                      disabled={Boolean(busyAction)}
-                      onClick={() => {
-                        setConfirmAction({
-                          type: "delete-everyone",
-                          title: "Delete message for everyone?",
-                          description:
-                            "This message will be deleted for everyone. This action cannot be undone.",
-                          confirmText: "Delete",
-                        });
-                        setMenuOpen(false);
-                      }}
-                    >
-                      Delete for everyone
-                    </MenuItem>
-                  )}
-                </div>
-              )}
-            </div>
+            <MessageActionsMenu
+              actionTop={actionTop}
+              isOwn={isOwn}
+              menuOpen={menuOpen}
+              setMenuOpen={setMenuOpen}
+              busyAction={busyAction}
+              isSelected={isSelected}
+              isDeleted={isDeleted}
+              canEdit={canEdit}
+              canDeleteEveryone={canDeleteEveryone}
+              message={message}
+              runAction={runAction}
+              toggleReaction={toggleReaction}
+              toggleMessageSelection={toggleMessageSelection}
+              setReplyTarget={setReplyTarget}
+              setEditText={setEditText}
+              setIsEditing={setIsEditing}
+              setConfirmAction={setConfirmAction}
+              focusComposer={focusComposer}
+            />
           )}
 
           {message.replyTo && !isDeleted && (
@@ -671,39 +334,15 @@ export default function MessageBubble({
             }}
           >
             {isEditing ? (
-              <div className="aurora-msg-edit">
-                <textarea
-                  ref={editTextareaRef}
-                  autoFocus
-                  value={editText}
-                  onChange={(event) => setEditText(event.target.value)}
-                  onKeyDown={handleEditKeyDown}
-                  aria-label="Edit message"
-                  rows={2}
-                  className="aurora-msg-edit-area"
-                />
-
-                <div className="aurora-msg-edit-actions">
-                  <button
-                    type="button"
-                    onClick={handleEditSave}
-                    disabled={Boolean(busyAction) || !editText.trim()}
-                    className="aurora-msg-edit-btn"
-                    data-primary="true"
-                  >
-                    {busyAction === "edit" ? <Spinner size={12} /> : "Save"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleEditCancel}
-                    disabled={Boolean(busyAction)}
-                    className="aurora-msg-edit-btn"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
+              <MessageEditForm
+                editTextareaRef={editTextareaRef}
+                editText={editText}
+                setEditText={setEditText}
+                handleEditKeyDown={handleEditKeyDown}
+                handleEditSave={handleEditSave}
+                handleEditCancel={handleEditCancel}
+                busyAction={busyAction}
+              />
             ) : (
               <>
                 {text}
@@ -746,13 +385,11 @@ export default function MessageBubble({
             </div>
           )}
 
-          <div className="aurora-msg-meta">
-            <span className="aurora-msg-time">
-              {formatTime(message.createdAt)}
-            </span>
-
-            {isOwn && !isDeleted && <StatusLabel status={message.status} />}
-          </div>
+          <MessageMeta
+            createdAt={message.createdAt}
+            status={message.status}
+            showStatus={isOwn && !isDeleted}
+          />
         </div>
       </div>
 

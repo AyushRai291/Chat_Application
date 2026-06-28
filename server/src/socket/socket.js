@@ -366,8 +366,6 @@ export const setupSocket = (httpServer) => {
     await emitOnlineUsers(socket);
     await markMessagesDeliveredForUser(userId, socket.user);
 
-    console.log(`Socket connected: ${socket.id} user:${userId}`);
-
     socket.on("ping:server", () => {
       socket.emit("pong:client", {
         message: "Socket connected successfully",
@@ -462,7 +460,6 @@ export const setupSocket = (httpServer) => {
         });
       }
 
-      console.log(`Socket disconnected: ${socket.id} user:${userId}`);
     });
   });
 
