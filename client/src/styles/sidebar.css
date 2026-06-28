@@ -386,3 +386,48 @@
   color: var(--text-secondary);
 }
 
+.aurora-conv[data-unread="true"] {
+  border-color: rgba(45, 212, 191, 0.34);
+  background:
+    linear-gradient(135deg, rgba(45, 212, 191, 0.12), rgba(139, 92, 246, 0.1)),
+    var(--bg-surface);
+}
+
+.aurora-conv[data-unread="true"] .aurora-conv__name {
+  color: var(--text-primary);
+  font-weight: 900;
+}
+
+.aurora-conv__time[data-unread="true"] {
+  color: #2dd4bf;
+  font-weight: 800;
+}
+
+.aurora-conv__bottom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.aurora-conv__preview {
+  flex: 1;
+  min-width: 0;
+}
+
+.aurora-conv__badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+  color: #ffffff;
+  background: var(--accent-gradient);
+  box-shadow: 0 10px 24px rgba(45, 212, 191, 0.24);
+}

@@ -47,6 +47,8 @@ export default function Sidebar() {
     loadConversations,
     selectConversation,
     createSavedConversation,
+    unreadCountsByConversation,
+    clearUnreadCount,
     error,
     socketConnected,
   } = useChat();
@@ -68,7 +70,7 @@ export default function Sidebar() {
       .slice()
       .sort(
         (first, second) =>
-          getConversationSortTime(second) - getConversationSortTime(first)
+          getConversationSortTime(second) - getConversationSortTime(first),
       )
       .filter((conversation) => {
         if (!cleanQuery) return true;
@@ -101,6 +103,11 @@ export default function Sidebar() {
     } finally {
       setLoggingOut(false);
     }
+  };
+
+  const handleConversationClick = (conversation) => {
+    clearUnreadCount(conversation._id);
+    selectConversation(conversation);
   };
 
   return (
@@ -195,8 +202,11 @@ export default function Sidebar() {
                 key={conversation._id}
                 conversation={conversation}
                 isActive={getId(selectedConversation) === getId(conversation)}
-                onClick={() => selectConversation(conversation)}
+                onClick={() => handleConversationClick(conversation)}
                 currentUserId={user?._id}
+                unreadCount={
+                  unreadCountsByConversation[getId(conversation)] || 0
+                }
               />
             ))}
         </nav>

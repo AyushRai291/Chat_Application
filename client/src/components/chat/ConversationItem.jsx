@@ -20,7 +20,7 @@ const getOtherParticipant = (conversation, currentUserId) => {
   if (!conversation?.participants?.length) return null;
 
   return conversation.participants.find(
-    (participant) => getId(participant) !== getId(currentUserId)
+    (participant) => getId(participant) !== getId(currentUserId),
   );
 };
 
@@ -111,6 +111,7 @@ export default function ConversationItem({
   isActive,
   onClick,
   currentUserId,
+  unreadCount = 0,
 }) {
   const { onlineUserIds } = useChat();
 
@@ -122,6 +123,8 @@ export default function ConversationItem({
     formatTime(conversation?.updatedAt);
 
   const isSelf = Boolean(conversation?.isSelf);
+  const hasUnread = unreadCount > 0;
+  const unreadText = unreadCount > 99 ? "99+" : String(unreadCount);
 
   const otherParticipant =
     !isSelf && !conversation?.isGroup
@@ -137,6 +140,7 @@ export default function ConversationItem({
       type="button"
       className="aurora-conv"
       data-active={isActive ? "true" : undefined}
+      data-unread={hasUnread ? "true" : undefined}
       onClick={onClick}
       aria-label={`Open conversation with ${name}`}
       aria-current={isActive ? "page" : undefined}
@@ -153,11 +157,24 @@ export default function ConversationItem({
         <div className="aurora-conv__top">
           <span className="aurora-conv__name">{name}</span>
 
-          {time && <span className="aurora-conv__time">{time}</span>}
+          {time && (
+            <span
+              className="aurora-conv__time"
+              data-unread={hasUnread ? "true" : undefined}
+            >
+              {time}
+            </span>
+          )}
         </div>
 
         <div className="aurora-conv__bottom">
           <p className="aurora-conv__preview">{preview}</p>
+
+          {hasUnread && (
+            <span className="aurora-conv__badge" aria-label={`${unreadCount} unread messages`}>
+              {unreadText}
+            </span>
+          )}
         </div>
       </div>
     </button>
