@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Avatar from "../ui/Avatar";
 import Spinner from "../ui/Spinner";
 import { useChat } from "../../context/ChatContext";
@@ -12,7 +13,9 @@ const TOUCH_MOVE_CANCEL_PX = 12;
 const getId = (value) => String(value?._id || value || "");
 
 function trimPreview(value, fallback = "") {
-  const clean = String(value || "").replace(/\s+/g, " ").trim();
+  const clean = String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
 
   if (!clean) return fallback;
   if (clean.length <= PREVIEW_LIMIT) return clean;
@@ -111,7 +114,82 @@ function getAttachmentUrl(url) {
   return `${baseUrl}${url.startsWith("/") ? url : `/${url}`}`;
 }
 
-function AttachmentView({ attachment }) {
+function ImageViewer({ image, onClose }) {
+  useEffect(() => {
+    if (!image) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [image, onClose]);
+
+  if (!image) return null;
+
+  return createPortal(
+    <div
+      className="aurora-image-viewer"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Image preview"
+      onClick={onClose}
+    >
+      <div
+        className="aurora-image-viewer__topbar"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <p className="aurora-image-viewer__title">{image.name}</p>
+
+        <div className="aurora-image-viewer__actions">
+          <a
+            href={image.url}
+            target="_blank"
+            rel="noreferrer"
+            className="aurora-image-viewer__btn"
+          >
+            Open
+          </a>
+
+          <a
+            href={image.url}
+            download={image.name}
+            className="aurora-image-viewer__btn"
+          >
+            Download
+          </a>
+
+          <button
+            type="button"
+            className="aurora-image-viewer__close"
+            onClick={onClose}
+            aria-label="Close image preview"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+
+      <div className="aurora-image-viewer__stage">
+        <img
+          src={image.url}
+          alt={image.name}
+          className="aurora-image-viewer__img"
+          onClick={(event) => event.stopPropagation()}
+        />
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function AttachmentView({ attachment, onImageOpen }) {
   const fileType = attachment.fileType || attachment.type || "";
   const url = getAttachmentUrl(attachment.url);
   const name = attachment.fileName || attachment.name || "Attachment";
@@ -120,9 +198,17 @@ function AttachmentView({ attachment }) {
 
   if (fileType.startsWith("image/")) {
     return (
-      <a href={url} target="_blank" rel="noreferrer">
+      <button
+        type="button"
+        className="aurora-attachment-img-btn"
+        onClick={(event) => {
+          event.stopPropagation();
+          onImageOpen({ url, name });
+        }}
+        aria-label={`Open image ${name}`}
+      >
         <img src={url} alt={name} className="aurora-attachment-img" />
-      </a>
+      </button>
     );
   }
 
@@ -140,6 +226,7 @@ function AttachmentView({ attachment }) {
       target="_blank"
       rel="noreferrer"
       className="aurora-attachment-file"
+      onClick={(event) => event.stopPropagation()}
     >
       📎 {name}
     </a>
@@ -185,6 +272,7 @@ export default function MessageBubble({
   const [editText, setEditText] = useState(message.text || "");
   const [busyAction, setBusyAction] = useState("");
   const [confirmAction, setConfirmAction] = useState(null);
+  const [viewerImage, setViewerImage] = useState(null);
 
   const editTextareaRef = useRef(null);
   const touchTimerRef = useRef(null);
@@ -206,7 +294,7 @@ export default function MessageBubble({
 
   const reactionCounts = useMemo(
     () => getReactionCounts(message.reactions),
-    [message.reactions]
+    [message.reactions],
   );
 
   useEffect(() => {
@@ -232,6 +320,7 @@ export default function MessageBubble({
     if (isDeleted) {
       setMenuOpen(false);
       setIsEditing(false);
+      setViewerImage(null);
     }
   }, [isDeleted]);
 
@@ -343,7 +432,7 @@ export default function MessageBubble({
 
     touchTimerRef.current = window.setTimeout(
       selectFromLongPress,
-      LONG_PRESS_MS
+      LONG_PRESS_MS,
     );
   };
 
@@ -381,7 +470,6 @@ export default function MessageBubble({
       suppressNextClickRef.current = false;
     }, 320);
   };
-
   return (
     <>
       <div
@@ -422,7 +510,11 @@ export default function MessageBubble({
         {!isOwn && (
           <div className="aurora-msg-avatar-slot">
             {showAvatar && (
-              <Avatar name={senderName} src={message.sender?.avatar} size="xs" />
+              <Avatar
+                name={senderName}
+                src={message.sender?.avatar}
+                size="xs"
+              />
             )}
           </div>
         )}
@@ -479,7 +571,7 @@ export default function MessageBubble({
                             className="aurora-msg-menu-emoji"
                             onClick={() =>
                               runAction(`reaction-${emoji}`, () =>
-                                toggleReaction(message._id, emoji)
+                                toggleReaction(message._id, emoji),
                               )
                             }
                             disabled={Boolean(busyAction)}
@@ -625,6 +717,7 @@ export default function MessageBubble({
                     <AttachmentView
                       key={attachment.publicId || attachment.url}
                       attachment={attachment}
+                      onImageOpen={setViewerImage}
                     />
                   ))}
               </>
@@ -640,7 +733,7 @@ export default function MessageBubble({
                   className="aurora-msg-reaction"
                   onClick={() =>
                     runAction(`reaction-${reaction.emoji}`, () =>
-                      toggleReaction(message._id, reaction.emoji)
+                      toggleReaction(message._id, reaction.emoji),
                     )
                   }
                   disabled={Boolean(busyAction)}
@@ -663,6 +756,8 @@ export default function MessageBubble({
         </div>
       </div>
 
+      <ImageViewer image={viewerImage} onClose={() => setViewerImage(null)} />
+
       <ConfirmDialog
         open={Boolean(confirmAction)}
         title={confirmAction?.title}
@@ -681,7 +776,7 @@ export default function MessageBubble({
 
           if (confirmAction.type === "delete-everyone") {
             await runAction("delete-everyone", () =>
-              deleteMessageForEveryone(message._id)
+              deleteMessageForEveryone(message._id),
             );
           }
 
