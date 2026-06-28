@@ -18,6 +18,135 @@ const getId = (value) => String(value?._id || value || "");
 const getErrorMessage = (err, fallback) =>
   err?.response?.data?.message || err?.message || fallback;
 
+const createClientMessageId = () =>
+  `cm-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+const statusRank = {
+  sending: 0,
+  failed: 0,
+  sent: 1,
+  delivered: 2,
+  read: 3,
+};
+
+const strongerStatus = (current, next) => {
+  const currentRank = statusRank[current] || 0;
+  const nextRank = statusRank[next] || 0;
+  return nextRank >= currentRank ? next : current;
+};
+
+const applyReceiptToMessage = (message, receipt, fallbackStatus) => {
+  if (!message || !receipt) return message;
+
+  return {
+    ...message,
+    status: strongerStatus(
+      message.status,
+      receipt.status || fallbackStatus || message.status,
+    ),
+    deliveredTo: receipt.deliveredTo || message.deliveredTo,
+    readBy: receipt.readBy || message.readBy,
+  };
+};
+
+const hasSameClientMessageId = (left, right) =>
+  Boolean(
+    left?.clientMessageId &&
+      right?.clientMessageId &&
+      left.clientMessageId === right.clientMessageId,
+  );
+
+const mergeMessageByIdOrClientId = (
+  messages,
+  nextMessage,
+  receiptMap = null,
+) => {
+  if (!nextMessage?._id) return messages;
+
+  let replaced = false;
+
+  let cleanedMessage = {
+    ...nextMessage,
+    isOptimistic: false,
+    isPending: false,
+    isFailed: false,
+  };
+
+  const storedReceipt = receiptMap?.get(getId(cleanedMessage));
+
+  if (storedReceipt) {
+    cleanedMessage = applyReceiptToMessage(cleanedMessage, storedReceipt);
+    receiptMap.delete(getId(cleanedMessage));
+  }
+
+  const nextMessages = messages.map((message) => {
+    if (
+      getId(message) === getId(cleanedMessage) ||
+      hasSameClientMessageId(message, cleanedMessage)
+    ) {
+      replaced = true;
+
+      return {
+        ...cleanedMessage,
+        status: strongerStatus(message.status, cleanedMessage.status),
+        deliveredTo: cleanedMessage.deliveredTo || message.deliveredTo,
+        readBy: cleanedMessage.readBy || message.readBy,
+      };
+    }
+
+    return message;
+  });
+
+  if (replaced) return nextMessages;
+
+  if (messages.some((message) => getId(message) === getId(cleanedMessage))) {
+    return messages;
+  }
+
+  return [...messages, cleanedMessage];
+};
+
+const buildLocalMessage = ({
+  clientMessageId,
+  conversationId,
+  sender,
+  text,
+  attachments,
+  replyTo,
+  status = "sending",
+  localFlag = "isOptimistic",
+}) => {
+  const now = new Date().toISOString();
+
+  return {
+    _id: `temp-${clientMessageId}`,
+    clientMessageId,
+    conversation: conversationId,
+    sender: sender
+      ? {
+          _id: sender._id,
+          name: sender.name,
+          email: sender.email,
+          avatar: sender.avatar,
+        }
+      : null,
+    text,
+    safeHtml: "",
+    attachments,
+    status,
+    readBy: sender?._id ? [sender._id] : [],
+    deliveredTo: [],
+    reactions: [],
+    replyTo: replyTo || null,
+    isEdited: false,
+    deletedFor: [],
+    deletedForEveryone: false,
+    createdAt: now,
+    updatedAt: now,
+    [localFlag]: true,
+  };
+};
+
 const applyOnlineStateToConversation = (conversation, onlineIds) => {
   if (!conversation?.participants?.length) return conversation;
 
@@ -64,6 +193,7 @@ export function ChatProvider({ children }) {
   const conversationsRef = useRef([]);
   const onlineIdsRef = useRef(new Set());
   const reloadingConversationsRef = useRef(false);
+  const pendingReceiptsRef = useRef(new Map());
 
   useEffect(() => {
     selectedConvRef.current = selectedConversation;
@@ -415,6 +545,35 @@ export function ChatProvider({ children }) {
       if (!conversationId) return null;
       if (!cleanText && attachments.length === 0) return null;
 
+      const clientMessageId = createClientMessageId();
+      const optimisticReplyTo =
+        getId(replyTarget) === getId(replyTo) ? replyTarget : null;
+
+      const optimisticMessage = buildLocalMessage({
+        clientMessageId,
+        conversationId,
+        sender: user,
+        text: cleanText,
+        attachments,
+        replyTo: optimisticReplyTo,
+        status: "sending",
+        localFlag: "isOptimistic",
+      });
+
+      setMessages((prev) => {
+        if (
+          prev.some(
+            (message) =>
+              message.clientMessageId === optimisticMessage.clientMessageId,
+          )
+        ) {
+          return prev;
+        }
+
+        return [...prev, optimisticMessage];
+      });
+
+      updateConversationLastMessage(conversationId, optimisticMessage);
       setSendingMessage(true);
       setError(null);
 
@@ -424,24 +583,52 @@ export function ChatProvider({ children }) {
           text: cleanText,
           replyTo,
           attachments,
+          clientMessageId,
         });
 
-        setMessages((prev) => {
-          if (prev.some((item) => getId(item) === getId(message))) return prev;
-          return [...prev, message];
-        });
+        const confirmedMessage = {
+          ...message,
+          clientMessageId: message?.clientMessageId || clientMessageId,
+          isOptimistic: false,
+          isPending: false,
+          isFailed: false,
+        };
 
-        updateConversationLastMessage(conversationId, message);
+        setMessages((prev) =>
+          mergeMessageByIdOrClientId(
+            prev,
+            confirmedMessage,
+            pendingReceiptsRef.current,
+          ),
+        );
+        updateConversationLastMessage(conversationId, confirmedMessage);
 
-        return message;
+        return confirmedMessage;
       } catch (err) {
-        setError(getErrorMessage(err, "Failed to send message."));
+        const errorMessage = getErrorMessage(err, "Failed to send message.");
+        setError(errorMessage);
+
+        setMessages((prev) =>
+          prev.map((message) =>
+            message.clientMessageId === clientMessageId
+              ? {
+                  ...message,
+                  status: "failed",
+                  isOptimistic: false,
+                  isPending: false,
+                  isFailed: true,
+                  errorMessage,
+                }
+              : message,
+          ),
+        );
+
         return null;
       } finally {
         setSendingMessage(false);
       }
     },
-    [updateConversationLastMessage],
+    [replyTarget, updateConversationLastMessage, user],
   );
 
   const editMessage = useCallback(
@@ -666,6 +853,7 @@ export function ChatProvider({ children }) {
     const offEvents = () => {
       socket.off("connect");
       socket.off("disconnect");
+      socket.off("message:pending");
       socket.off("message:new");
       socket.off("message:updated");
       socket.off("message:deleted-for-me");
@@ -691,6 +879,44 @@ export function ChatProvider({ children }) {
       setSocketConnected(false);
     });
 
+    socket.on("message:pending", (data) => {
+      const rawMessage = data?.message || data;
+      const conversationId =
+        data?.conversationId ||
+        rawMessage?.conversation?._id ||
+        rawMessage?.conversation;
+
+      if (!rawMessage?._id || !conversationId) return;
+      if (getId(rawMessage.sender) === getId(user)) return;
+
+      const selectedId = selectedConvRef.current?._id;
+      const pendingMessage = {
+        ...rawMessage,
+        isPending: true,
+        isOptimistic: false,
+        isFailed: false,
+        status: rawMessage.status || "sending",
+      };
+
+      if (getId(conversationId) === getId(selectedId)) {
+        setMessages((prev) => {
+          if (
+            prev.some(
+              (message) =>
+                getId(message) === getId(pendingMessage) ||
+                hasSameClientMessageId(message, pendingMessage),
+            )
+          ) {
+            return prev;
+          }
+
+          return [...prev, pendingMessage];
+        });
+      }
+
+      updateConversationLastMessage(conversationId, pendingMessage);
+    });
+
     socket.on("message:new", (data) => {
       const message = data?.message || data;
       const conversationId =
@@ -701,15 +927,30 @@ export function ChatProvider({ children }) {
       if (!message?._id || !conversationId) return;
 
       const selectedId = selectedConvRef.current?._id;
+      const confirmedMessage = {
+        ...message,
+        isOptimistic: false,
+        isPending: false,
+        isFailed: false,
+      };
 
       if (getId(conversationId) === getId(selectedId)) {
-        setMessages((prev) => {
-          if (prev.some((item) => getId(item) === getId(message))) return prev;
-          return [...prev, message];
-        });
+        setMessages((prev) =>
+          mergeMessageByIdOrClientId(
+            prev,
+            confirmedMessage,
+            pendingReceiptsRef.current,
+          ),
+        );
 
         if (getId(message.sender) !== getId(user)) {
-          markConversationRead(conversationId);
+          window.setTimeout(() => {
+            markConversationRead(conversationId);
+          }, 80);
+
+          window.setTimeout(() => {
+            markConversationRead(conversationId);
+          }, 350);
         }
       }
 
@@ -722,7 +963,14 @@ export function ChatProvider({ children }) {
         return;
       }
 
-      updateConversationLastMessage(conversationId, message);
+      const storedReceipt = pendingReceiptsRef.current.get(
+        getId(confirmedMessage),
+      );
+      const lastMessage = storedReceipt
+        ? applyReceiptToMessage(confirmedMessage, storedReceipt)
+        : confirmedMessage;
+
+      updateConversationLastMessage(conversationId, lastMessage);
     });
 
     socket.on("message:updated", (data) => {
@@ -804,23 +1052,31 @@ export function ChatProvider({ children }) {
       const conversationId = getId(data?.conversationId);
       if (!conversationId) return;
 
-      const patchWithReceipt = (message, receipt) => ({
-        ...message,
-        status: receipt.status || fallbackStatus || message.status,
-        deliveredTo: receipt.deliveredTo || message.deliveredTo,
-        readBy: receipt.readBy || message.readBy,
-      });
-
       if (Array.isArray(data?.receipts)) {
         const receiptMap = new Map(
-          data.receipts.map((receipt) => [getId(receipt.messageId), receipt]),
+          data.receipts.map((receipt) => [
+            getId(receipt.messageId),
+            {
+              ...receipt,
+              status: receipt.status || fallbackStatus,
+            },
+          ]),
         );
+
+        receiptMap.forEach((receipt, messageId) => {
+          if (messageId) {
+            pendingReceiptsRef.current.set(messageId, receipt);
+          }
+        });
 
         if (getId(selectedConvRef.current) === conversationId) {
           setMessages((prev) =>
             prev.map((message) => {
               const receipt = receiptMap.get(getId(message));
-              return receipt ? patchWithReceipt(message, receipt) : message;
+              if (!receipt) return message;
+
+              pendingReceiptsRef.current.delete(getId(message));
+              return applyReceiptToMessage(message, receipt, fallbackStatus);
             }),
           );
         }
@@ -838,9 +1094,10 @@ export function ChatProvider({ children }) {
             return receipt
               ? {
                   ...conversation,
-                  lastMessage: patchWithReceipt(
+                  lastMessage: applyReceiptToMessage(
                     conversation.lastMessage,
                     receipt,
+                    fallbackStatus,
                   ),
                 }
               : conversation;
@@ -854,7 +1111,11 @@ export function ChatProvider({ children }) {
           return receipt
             ? {
                 ...prev,
-                lastMessage: patchWithReceipt(prev.lastMessage, receipt),
+                lastMessage: applyReceiptToMessage(
+                  prev.lastMessage,
+                  receipt,
+                  fallbackStatus,
+                ),
               }
             : prev;
         });
@@ -865,14 +1126,30 @@ export function ChatProvider({ children }) {
       const messageId = getId(data?.messageId || data?.message?._id);
       if (!messageId) return;
 
+      const receipt = {
+        ...data,
+        status: data.status || fallbackStatus,
+      };
+
+      pendingReceiptsRef.current.set(messageId, receipt);
+
       if (getId(selectedConvRef.current) === conversationId) {
-        setMessages((prev) =>
-          prev.map((message) =>
-            getId(message) === messageId
-              ? patchWithReceipt(message, data)
-              : message,
-          ),
-        );
+        setMessages((prev) => {
+          let found = false;
+
+          const next = prev.map((message) => {
+            if (getId(message) !== messageId) return message;
+
+            found = true;
+            return applyReceiptToMessage(message, receipt, fallbackStatus);
+          });
+
+          if (found) {
+            pendingReceiptsRef.current.delete(messageId);
+          }
+
+          return next;
+        });
       }
 
       setConversations((prev) =>
@@ -881,7 +1158,11 @@ export function ChatProvider({ children }) {
           getId(conversation.lastMessage) === messageId
             ? {
                 ...conversation,
-                lastMessage: patchWithReceipt(conversation.lastMessage, data),
+                lastMessage: applyReceiptToMessage(
+                  conversation.lastMessage,
+                  receipt,
+                  fallbackStatus,
+                ),
               }
             : conversation,
         ),
@@ -891,7 +1172,11 @@ export function ChatProvider({ children }) {
         getId(prev) === conversationId && getId(prev?.lastMessage) === messageId
           ? {
               ...prev,
-              lastMessage: patchWithReceipt(prev.lastMessage, data),
+              lastMessage: applyReceiptToMessage(
+                prev.lastMessage,
+                receipt,
+                fallbackStatus,
+              ),
             }
           : prev,
       );

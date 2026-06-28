@@ -6,12 +6,19 @@ export const messageService = {
     return data.messages || [];
   },
 
-  async sendMessage({ conversationId, text, replyTo = null, attachments = [] }) {
+  async sendMessage({
+    conversationId,
+    text,
+    replyTo = null,
+    attachments = [],
+    clientMessageId = "",
+  }) {
     const { data } = await api.post("/api/messages", {
       conversationId,
       text,
       replyTo,
       attachments,
+      clientMessageId,
     });
 
     return data.message;

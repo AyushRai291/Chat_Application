@@ -223,9 +223,7 @@ const isConversationAdmin = (conversation, userId) => {
     toIdString(conversation.admin),
     ...(conversation.admins || []).map(toIdString),
     ...(conversation.memberRoles || [])
-      .filter((memberRole) =>
-        ["owner", "admin"].includes(memberRole.role)
-      )
+      .filter((memberRole) => ["owner", "admin"].includes(memberRole.role))
       .map((memberRole) => toIdString(memberRole.user)),
   ].filter(Boolean));
 
@@ -276,6 +274,36 @@ const emitToConversation = (conversation, eventName, payload) => {
   conversation.participants.forEach((participantId) => {
     io.to(`user:${participantId.toString()}`).emit(eventName, payload);
   });
+};
+
+const emitToOtherConversationParticipants = (
+  conversation,
+  senderId,
+  eventName,
+  payload
+) => {
+  const io = getIO();
+
+  if (!io) {
+    return;
+  }
+
+  const senderIdString = senderId.toString();
+
+  conversation.participants.forEach((participantId) => {
+    const participantIdString = participantId.toString();
+
+    if (participantIdString === senderIdString) {
+      return;
+    }
+
+    io.to(`user:${participantIdString}`).emit(eventName, payload);
+  });
+};
+
+const normalizeClientMessageId = (value) => {
+  if (typeof value !== "string") return "";
+  return value.trim().slice(0, 120);
 };
 
 const getMessageWithConversation = async ({ messageId, userId }) => {
@@ -488,6 +516,7 @@ export const searchMessages = asyncHandler(async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(limit + 1)
   );
+
   const hasMore = searchResults.length > limit;
   const messages = searchResults.slice(0, limit);
 
@@ -502,6 +531,7 @@ export const searchMessages = asyncHandler(async (req, res) => {
 
 export const sendMessage = asyncHandler(async (req, res) => {
   const { conversationId, replyTo } = req.body || {};
+  const clientMessageId = normalizeClientMessageId(req.body?.clientMessageId);
   const text =
     typeof req.body?.text === "string"
       ? normalizeStoredText(req.body.text)
@@ -590,6 +620,46 @@ export const sendMessage = asyncHandler(async (req, res) => {
     readBy,
   });
 
+  if (clientMessageId) {
+    const now = new Date().toISOString();
+    const sender = {
+      _id: req.user._id.toString(),
+      name: req.user.name,
+      email: req.user.email,
+      avatar: req.user.avatar,
+    };
+
+    emitToOtherConversationParticipants(
+      conversation,
+      req.user._id,
+      "message:pending",
+      {
+        conversationId: conversation._id.toString(),
+        clientMessageId,
+        message: {
+          _id: `pending-${clientMessageId}`,
+          clientMessageId,
+          conversation: conversation._id.toString(),
+          sender,
+          text,
+          safeHtml: buildSafeHtml(text),
+          attachments,
+          status: "sending",
+          readBy: [req.user._id.toString()],
+          deliveredTo: [],
+          reactions: [],
+          replyTo: null,
+          isEdited: false,
+          deletedFor: [],
+          deletedForEveryone: false,
+          isPending: true,
+          createdAt: now,
+          updatedAt: now,
+        },
+      }
+    );
+  }
+
   const message = await Message.create({
     conversation: conversation._id,
     sender: req.user._id,
@@ -614,10 +684,14 @@ export const sendMessage = asyncHandler(async (req, res) => {
   });
 
   const populatedMessage = await populateMessage(Message.findById(message._id));
+  const messagePayload = {
+    ...populatedMessage.toObject(),
+    clientMessageId,
+  };
 
   emitToConversation(conversation, "message:new", {
     conversationId: conversation._id.toString(),
-    message: populatedMessage.toObject(),
+    message: messagePayload,
   });
 
   await notifyMessageRecipients({
@@ -627,7 +701,7 @@ export const sendMessage = asyncHandler(async (req, res) => {
   });
 
   res.status(201).json({
-    message: populatedMessage,
+    message: messagePayload,
   });
 });
 

@@ -76,7 +76,6 @@ function formatFileSize(size = 0) {
 export default function Composer() {
   const {
     sendMessage,
-    sendingMessage,
     selectedConversation,
     replyTarget,
     clearReplyTarget,
@@ -208,11 +207,10 @@ export default function Composer() {
   const handleSend = async () => {
     const cleanText = text.trim();
 
-    if ((!cleanText && !selectedFile) || sendingMessage || uploading || !conversationId) {
+    if ((!cleanText && !selectedFile) || uploading || !conversationId) {
       return;
     }
 
-    const oldText = text;
     const oldReplyTarget = replyTarget;
     const oldSelectedFile = selectedFile;
 
@@ -232,33 +230,29 @@ export default function Composer() {
         });
       } catch (err) {
         setUploadError(
-          err?.response?.data?.message || err?.message || "File upload failed."
+          err?.response?.data?.message || err?.message || "File upload failed.",
         );
         setUploading(false);
-        textareaRef.current?.focus();
+        textareaRef.current?.focus({ preventScroll: true });
         return;
       } finally {
         setUploading(false);
       }
     }
 
-    const message = await sendMessage({
+    setText("");
+    clearReplyTarget();
+    clearSelectedFile();
+    requestAnimationFrame(resizeTextarea);
+
+    await sendMessage({
       text: cleanText,
       replyTo: oldReplyTarget?._id || null,
       attachments: attachment ? [attachment] : [],
     });
 
-    if (message) {
-      setText("");
-      clearReplyTarget();
-      clearSelectedFile();
-    } else {
-      setText(oldText);
-      setSelectedFile(oldSelectedFile);
-    }
-
     requestAnimationFrame(resizeTextarea);
-    textareaRef.current?.focus();
+    textareaRef.current?.focus({ preventScroll: true });
   };
 
   const handleSubmit = (event) => {
@@ -267,12 +261,12 @@ export default function Composer() {
   };
 
   const preventSendBlur = (event) => {
-    if ((!text.trim() && !selectedFile) || sendingMessage || uploading) return;
+    if ((!text.trim() && !selectedFile) || uploading) return;
     event.preventDefault();
   };
 
   const handleSendTouchEnd = (event) => {
-    if ((!text.trim() && !selectedFile) || sendingMessage || uploading) return;
+    if ((!text.trim() && !selectedFile) || uploading) return;
 
     event.preventDefault();
     sentFromTouchRef.current = true;
@@ -303,7 +297,7 @@ export default function Composer() {
   if (!selectedConversation) return null;
 
   const hasSendableContent = Boolean(text.trim() || selectedFile);
-  const isBusy = sendingMessage || uploading;
+  const isBusy = uploading;
 
   return (
     <div className="aurora-composer">
@@ -340,7 +334,10 @@ export default function Composer() {
                 className="aurora-composer__attachment-img"
               />
             ) : (
-              <div className="aurora-composer__attachment-icon" aria-hidden="true">
+              <div
+                className="aurora-composer__attachment-icon"
+                aria-hidden="true"
+              >
                 {"\u{1F4CE}"}
               </div>
             )}
