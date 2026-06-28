@@ -446,6 +446,55 @@ export function useConversationActions({
     [selectConversation, setError, upsertConversation],
   );
 
+  const createGroupConversation = useCallback(
+    async ({ groupName, participantIds }) => {
+      const cleanName = String(groupName || "").trim();
+      const cleanParticipantIds = Array.isArray(participantIds)
+        ? participantIds.filter(Boolean)
+        : [];
+
+      if (!cleanName || cleanParticipantIds.length === 0) return null;
+
+      setError(null);
+
+      try {
+        const conversation = await conversationService.createGroup({
+          groupName: cleanName,
+          participantIds: cleanParticipantIds,
+        });
+
+        upsertConversation(conversation);
+        await selectConversation(conversation);
+
+        return conversation;
+      } catch (err) {
+        setError(getErrorMessage(err, "Failed to create group."));
+        return null;
+      }
+    },
+    [selectConversation, setError, upsertConversation],
+  );
+
+  const leaveGroupConversation = useCallback(
+    async (conversationId) => {
+      const id = getId(conversationId || selectedConvRef.current);
+      if (!id) return null;
+
+      setError(null);
+
+      try {
+        const data = await conversationService.leaveGroup(id);
+
+        removeConversationForCurrentUser(id);
+        return data;
+      } catch (err) {
+        setError(getErrorMessage(err, "Failed to leave group."));
+        return null;
+      }
+    },
+    [removeConversationForCurrentUser, selectedConvRef, setError],
+  );
+
   const deleteConversationForMe = useCallback(
     async (conversationId) => {
       const id = getId(conversationId || selectedConvRef.current);
@@ -470,8 +519,10 @@ export function useConversationActions({
   return {
     clearUnreadCount,
     createDirectConversation,
+    createGroupConversation,
     createSavedConversation,
     deleteConversationForMe,
+    leaveGroupConversation,
     loadConversations,
     markConversationRead,
     notifyIncomingMessage,

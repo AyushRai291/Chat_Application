@@ -19,9 +19,28 @@ function formatLastSeen(dateStr) {
   });
 }
 
+function getMemberRole(conversation, participantId) {
+  const id = getId(participantId);
+
+  const roleItem = conversation.memberRoles?.find(
+    (item) => getId(item.user) === id,
+  );
+
+  if (roleItem?.role === "owner") return "Owner";
+  if (roleItem?.role === "admin") return "Admin";
+
+  if (getId(conversation.admin) === id) return "Owner";
+
+  const isAdmin = conversation.admins?.some((adminId) => getId(adminId) === id);
+  if (isAdmin) return "Admin";
+
+  return "Member";
+}
+
 function getActionCopy(conversation) {
   if (conversation.isSelf) {
     return {
+      type: "delete-for-me",
       button: "Clear Saved Messages",
       title: "Clear Saved Messages?",
       desc: "This will hide this chat and remove saved messages only for you.",
@@ -31,14 +50,16 @@ function getActionCopy(conversation) {
 
   if (conversation.isGroup) {
     return {
-      button: "Hide conversation",
-      title: "Hide this conversation?",
-      desc: "This will hide the group chat only for you. Other members will not be affected.",
-      confirm: "Hide",
+      type: "leave-group",
+      button: "Leave group",
+      title: "Leave this group?",
+      desc: "You will stop receiving messages from this group. Other members will remain in the group.",
+      confirm: "Leave",
     };
   }
 
   return {
+    type: "delete-for-me",
     button: "Delete conversation",
     title: "Delete this conversation?",
     desc: "This will delete the chat only for you. The other user will still keep their messages.",
@@ -54,9 +75,10 @@ export default function InfoPanel({ onClose }) {
     onlineUserIds,
     socketConnected,
     deleteConversationForMe,
+    leaveGroupConversation,
   } = useChat();
 
-  const [deletingConversation, setDeletingConversation] = useState(false);
+  const [busyAction, setBusyAction] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   if (!selectedConversation) return null;
@@ -76,12 +98,23 @@ export default function InfoPanel({ onClose }) {
     ? onlineUserIds.has(getId(otherUser))
     : false;
 
-  const handleDeleteConversation = async () => {
-    if (deletingConversation) return;
+  const handleConfirmAction = async () => {
+    if (busyAction) return;
 
-    setDeletingConversation(true);
+    setBusyAction(true);
 
     try {
+      if (actionCopy.type === "leave-group") {
+        const result = await leaveGroupConversation(conversation._id);
+
+        if (result) {
+          setConfirmOpen(false);
+          onClose?.();
+        }
+
+        return;
+      }
+
       const deletedId = await deleteConversationForMe(conversation._id);
 
       if (deletedId) {
@@ -89,7 +122,7 @@ export default function InfoPanel({ onClose }) {
         onClose?.();
       }
     } finally {
-      setDeletingConversation(false);
+      setBusyAction(false);
     }
   };
 
@@ -240,7 +273,7 @@ export default function InfoPanel({ onClose }) {
           <button
             type="button"
             onClick={() => setConfirmOpen(true)}
-            disabled={deletingConversation}
+            disabled={busyAction}
             aria-label={actionCopy.button}
             style={{
               width: "100%",
@@ -249,11 +282,11 @@ export default function InfoPanel({ onClose }) {
               border: "1px solid rgba(239,68,68,0.28)",
               background: "rgba(239,68,68,0.1)",
               color: "var(--status-error)",
-              cursor: deletingConversation ? "not-allowed" : "pointer",
+              cursor: busyAction ? "not-allowed" : "pointer",
               fontFamily: "var(--font-sans)",
               fontSize: "0.82rem",
               fontWeight: 700,
-              opacity: deletingConversation ? 0.65 : 1,
+              opacity: busyAction ? 0.65 : 1,
               textAlign: "left",
             }}
           >
@@ -296,8 +329,8 @@ export default function InfoPanel({ onClose }) {
             <div style={{ display: "flex", gap: "8px" }}>
               <button
                 type="button"
-                onClick={handleDeleteConversation}
-                disabled={deletingConversation}
+                onClick={handleConfirmAction}
+                disabled={busyAction}
                 style={{
                   flex: 1,
                   padding: "8px 10px",
@@ -305,20 +338,20 @@ export default function InfoPanel({ onClose }) {
                   border: "1px solid rgba(239,68,68,0.35)",
                   background: "rgba(239,68,68,0.18)",
                   color: "var(--status-error)",
-                  cursor: deletingConversation ? "not-allowed" : "pointer",
+                  cursor: busyAction ? "not-allowed" : "pointer",
                   fontFamily: "var(--font-sans)",
                   fontSize: "0.78rem",
                   fontWeight: 800,
-                  opacity: deletingConversation ? 0.65 : 1,
+                  opacity: busyAction ? 0.65 : 1,
                 }}
               >
-                {deletingConversation ? "Working..." : actionCopy.confirm}
+                {busyAction ? "Working..." : actionCopy.confirm}
               </button>
 
               <button
                 type="button"
                 onClick={() => setConfirmOpen(false)}
-                disabled={deletingConversation}
+                disabled={busyAction}
                 style={{
                   flex: 1,
                   padding: "8px 10px",
@@ -326,11 +359,11 @@ export default function InfoPanel({ onClose }) {
                   border: "1px solid var(--border-default)",
                   background: "var(--bg-overlay)",
                   color: "var(--text-secondary)",
-                  cursor: deletingConversation ? "not-allowed" : "pointer",
+                  cursor: busyAction ? "not-allowed" : "pointer",
                   fontFamily: "var(--font-sans)",
                   fontSize: "0.78rem",
                   fontWeight: 700,
-                  opacity: deletingConversation ? 0.65 : 1,
+                  opacity: busyAction ? 0.65 : 1,
                 }}
               >
                 Cancel
@@ -351,6 +384,9 @@ export default function InfoPanel({ onClose }) {
             const isOnline = isMe
               ? socketConnected
               : onlineUserIds.has(participantId);
+            const role = conversation.isGroup
+              ? getMemberRole(conversation, participantId)
+              : "";
 
             return (
               <div
@@ -393,6 +429,7 @@ export default function InfoPanel({ onClose }) {
                     }}
                   >
                     {isOnline ? "● Online" : "○ Offline"}
+                    {role ? ` · ${role}` : ""}
                   </p>
                 </div>
               </div>

@@ -8,6 +8,7 @@ import { useAuth } from "./AuthContext";
 import { useChatSocket } from "./chat/useChatSocket";
 import { useConversationActions } from "./chat/useConversationActions";
 import { useMessageActions } from "./chat/useMessageActions";
+
 const ChatContext = createContext(null);
 
 export function ChatProvider({ children }) {
@@ -52,8 +53,10 @@ export function ChatProvider({ children }) {
   const {
     clearUnreadCount,
     createDirectConversation,
+    createGroupConversation,
     createSavedConversation,
     deleteConversationForMe,
+    leaveGroupConversation,
     loadConversations,
     markConversationRead,
     notifyIncomingMessage,
@@ -163,6 +166,8 @@ export function ChatProvider({ children }) {
         selectConversation,
         createSavedConversation,
         createDirectConversation,
+        createGroupConversation,
+        leaveGroupConversation,
         deleteConversationForMe,
 
         sendMessage,

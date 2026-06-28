@@ -5,6 +5,7 @@ import Avatar from "../ui/Avatar";
 import Spinner from "../ui/Spinner";
 import ConversationItem, { getConvName } from "../chat/ConversationItem";
 import UserSearch from "../users/UserSearch";
+import GroupCreateModal from "../users/GroupCreateModal";
 import ConfirmDialog from "../ui/ConfirmDialog";
 
 const SearchIcon = () => (
@@ -55,6 +56,7 @@ export default function Sidebar() {
 
   const [query, setQuery] = useState("");
   const [showUserSearch, setShowUserSearch] = useState(false);
+  const [showGroupCreate, setShowGroupCreate] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [openingSaved, setOpeningSaved] = useState(false);
   const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
@@ -116,6 +118,10 @@ export default function Sidebar() {
         <UserSearch onClose={() => setShowUserSearch(false)} />
       )}
 
+      {showGroupCreate && (
+        <GroupCreateModal onClose={() => setShowGroupCreate(false)} />
+      )}
+
       <aside className="aurora-sidebar" aria-label="Conversations sidebar">
         <header className="aurora-sidebar__top">
           <div className="aurora-sidebar__brand-mark" aria-hidden="true">
@@ -168,6 +174,19 @@ export default function Sidebar() {
             <span aria-hidden="true">🔖</span>
             <span style={{ flex: 1, textAlign: "left" }}>Saved Messages</span>
             {openingSaved && <Spinner size={14} />}
+          </button>
+
+          <button
+            type="button"
+            className="aurora-saved-card"
+            onClick={() => setShowGroupCreate(true)}
+            aria-label="Create Group"
+          >
+            <span aria-hidden="true">👥</span>
+            <span style={{ flex: 1, textAlign: "left" }}>Create Group</span>
+            <span style={{ color: "var(--text-muted)", fontWeight: 800 }}>
+              +
+            </span>
           </button>
         </section>
 
