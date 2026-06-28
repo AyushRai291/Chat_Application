@@ -75,6 +75,93 @@
   margin: 0 auto;
 }
 
+.aurora-composer__attachment {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.aurora-composer__attachment-img {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.aurora-composer__attachment-icon {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.aurora-composer__attachment-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.aurora-composer__attachment-name {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  font-weight: 750;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aurora-composer__attachment-meta,
+.aurora-composer__error {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.aurora-composer__error {
+  margin: 0 2px 8px;
+  color: var(--status-error);
+}
+
+.aurora-composer__attachment-remove,
+.aurora-composer__attach {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-full);
+  color: var(--text-muted);
+}
+
+.aurora-composer__attachment-remove {
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.045);
+  font-size: 1.1rem;
+}
+
+.aurora-composer__file-input {
+  display: none;
+}
+
+.aurora-composer__attach {
+  border: 1px solid transparent;
+  background: transparent;
+}
+
+.aurora-composer__attach:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .aurora-composer__box {
   position: relative;
   min-height: 54px;

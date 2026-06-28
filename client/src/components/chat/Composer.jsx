@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useChat } from "../../context/ChatContext";
+import { uploadService } from "../../services/uploadService";
 import Spinner from "../ui/Spinner";
 
 const TYPING_DEBOUNCE_MS = 1200;
@@ -48,6 +49,30 @@ function SendIcon() {
   );
 }
 
+function AttachIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m21.44 11.05-8.49 8.49a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+    </svg>
+  );
+}
+
+function formatFileSize(size = 0) {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default function Composer() {
   const {
     sendMessage,
@@ -60,7 +85,12 @@ export default function Composer() {
   } = useChat();
 
   const [text, setText] = useState("");
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [filePreviewUrl, setFilePreviewUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const textareaRef = useRef(null);
+  const fileInputRef = useRef(null);
   const isTypingRef = useRef(false);
   const stopTimerRef = useRef(null);
   const sentFromTouchRef = useRef(false);
@@ -133,6 +163,18 @@ export default function Composer() {
     return () => window.clearTimeout(timer);
   }, [replyTarget, conversationId]);
 
+  useEffect(() => {
+    if (!selectedFile || !selectedFile.type.startsWith("image/")) {
+      setFilePreviewUrl("");
+      return undefined;
+    }
+
+    const previewUrl = URL.createObjectURL(selectedFile);
+    setFilePreviewUrl(previewUrl);
+
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [selectedFile]);
+
   const handleChange = (event) => {
     const value = event.target.value;
     setText(value);
@@ -149,31 +191,73 @@ export default function Composer() {
     scheduleStop();
   };
 
+  const clearSelectedFile = () => {
+    setSelectedFile(null);
+    setUploadError("");
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleFileChange = (event) => {
+    setSelectedFile(event.target.files?.[0] || null);
+    setUploadError("");
+  };
+
   const handleSend = async () => {
     const cleanText = text.trim();
 
-    if (!cleanText || sendingMessage || !conversationId) return;
+    if ((!cleanText && !selectedFile) || sendingMessage || uploading || !conversationId) {
+      return;
+    }
 
     const oldText = text;
     const oldReplyTarget = replyTarget;
-
-    setText("");
-    clearReplyTarget();
-    requestAnimationFrame(resizeTextarea);
+    const oldSelectedFile = selectedFile;
 
     clearStopTimer();
     emitStop();
 
+    let attachment = null;
+
+    if (oldSelectedFile) {
+      setUploading(true);
+      setUploadError("");
+
+      try {
+        attachment = await uploadService.uploadAttachment({
+          file: oldSelectedFile,
+          conversationId,
+        });
+      } catch (err) {
+        setUploadError(
+          err?.response?.data?.message || err?.message || "File upload failed."
+        );
+        setUploading(false);
+        textareaRef.current?.focus();
+        return;
+      } finally {
+        setUploading(false);
+      }
+    }
+
     const message = await sendMessage({
       text: cleanText,
       replyTo: oldReplyTarget?._id || null,
+      attachments: attachment ? [attachment] : [],
     });
 
-    if (!message) {
+    if (message) {
+      setText("");
+      clearReplyTarget();
+      clearSelectedFile();
+    } else {
       setText(oldText);
-      requestAnimationFrame(resizeTextarea);
+      setSelectedFile(oldSelectedFile);
     }
 
+    requestAnimationFrame(resizeTextarea);
     textareaRef.current?.focus();
   };
 
@@ -183,12 +267,12 @@ export default function Composer() {
   };
 
   const preventSendBlur = (event) => {
-    if (!text.trim() || sendingMessage) return;
+    if ((!text.trim() && !selectedFile) || sendingMessage || uploading) return;
     event.preventDefault();
   };
 
   const handleSendTouchEnd = (event) => {
-    if (!text.trim() || sendingMessage) return;
+    if ((!text.trim() && !selectedFile) || sendingMessage || uploading) return;
 
     event.preventDefault();
     sentFromTouchRef.current = true;
@@ -218,6 +302,9 @@ export default function Composer() {
 
   if (!selectedConversation) return null;
 
+  const hasSendableContent = Boolean(text.trim() || selectedFile);
+  const isBusy = sendingMessage || uploading;
+
   return (
     <div className="aurora-composer">
       {replyTarget && (
@@ -244,7 +331,66 @@ export default function Composer() {
       )}
 
       <form className="aurora-composer__form" onSubmit={handleSubmit}>
+        {selectedFile && (
+          <div className="aurora-composer__attachment">
+            {filePreviewUrl ? (
+              <img
+                src={filePreviewUrl}
+                alt={selectedFile.name}
+                className="aurora-composer__attachment-img"
+              />
+            ) : (
+              <div className="aurora-composer__attachment-icon" aria-hidden="true">
+                {"\u{1F4CE}"}
+              </div>
+            )}
+
+            <div className="aurora-composer__attachment-body">
+              <p className="aurora-composer__attachment-name">
+                {selectedFile.name}
+              </p>
+              <p className="aurora-composer__attachment-meta">
+                {formatFileSize(selectedFile.size)}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              className="aurora-composer__attachment-remove"
+              onClick={clearSelectedFile}
+              aria-label="Remove selected file"
+            >
+              {"\u00D7"}
+            </button>
+          </div>
+        )}
+
+        {uploadError && (
+          <p className="aurora-composer__error" role="alert">
+            {uploadError}
+          </p>
+        )}
+
         <div className="aurora-composer__box">
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="aurora-composer__file-input"
+            onChange={handleFileChange}
+            aria-label="Attach file"
+          />
+
+          <button
+            type="button"
+            className="aurora-composer__attach"
+            onClick={() => fileInputRef.current?.click()}
+            aria-label="Attach file"
+            title="Attach file"
+            disabled={isBusy}
+          >
+            <AttachIcon />
+          </button>
+
           <textarea
             id="aurora-composer-input"
             ref={textareaRef}
@@ -261,7 +407,7 @@ export default function Composer() {
           <button
             type="button"
             className="aurora-composer__send"
-            disabled={!text.trim() || sendingMessage}
+            disabled={!hasSendableContent || isBusy}
             aria-label="Send message"
             title="Send message"
             onMouseDown={preventSendBlur}
@@ -269,7 +415,7 @@ export default function Composer() {
             onTouchEnd={handleSendTouchEnd}
             onClick={handleSendClick}
           >
-            {sendingMessage ? <Spinner size={16} color="#fff" /> : <SendIcon />}
+            {isBusy ? <Spinner size={16} color="#fff" /> : <SendIcon />}
           </button>
         </div>
 

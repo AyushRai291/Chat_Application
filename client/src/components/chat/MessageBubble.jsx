@@ -103,10 +103,18 @@ function MenuItem({ children, onClick, disabled, danger = false }) {
   );
 }
 
+function getAttachmentUrl(url) {
+  if (!url) return "";
+  if (/^https?:\/\//i.test(url)) return url;
+
+  const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  return `${baseUrl}${url.startsWith("/") ? url : `/${url}`}`;
+}
+
 function AttachmentView({ attachment }) {
-  const fileType = attachment.fileType || "";
-  const url = attachment.url;
-  const name = attachment.fileName || "Attachment";
+  const fileType = attachment.fileType || attachment.type || "";
+  const url = getAttachmentUrl(attachment.url);
+  const name = attachment.fileName || attachment.name || "Attachment";
 
   if (!url) return null;
 

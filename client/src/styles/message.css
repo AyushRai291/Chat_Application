@@ -311,7 +311,13 @@
 
 .aurora-attachment-file {
   display: inline-flex;
+  align-items: center;
+  gap: 6px;
   margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.045);
   color: var(--accent-secondary);
   font-size: 0.82rem;
   word-break: break-word;
