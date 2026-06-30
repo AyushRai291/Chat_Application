@@ -211,13 +211,29 @@ export default function Sidebar() {
 
           {!loadingConversations && filtered.length === 0 && (
             <div className="aurora-sidebar__empty">
-              <p className="aurora-sidebar__empty-icon">💬</p>
+              <div className="aurora-sidebar__empty-icon" aria-hidden="true">
+                <span>+</span>
+              </div>
+
+              <h2>
+                {query ? "No matches found" : "No conversations yet"}
+              </h2>
 
               <p>
                 {query
                   ? `No conversations matching "${query}"`
-                  : "No conversations yet. Start one!"}
+                  : "Start with a new chat, group, or saved note."}
               </p>
+
+              {!query && (
+                <button
+                  type="button"
+                  className="aurora-sidebar__empty-btn"
+                  onClick={() => setShowUserSearch(true)}
+                >
+                  Start a conversation
+                </button>
+              )}
             </div>
           )}
 

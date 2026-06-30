@@ -1,4 +1,4 @@
-﻿.aurora-shell {
+.aurora-shell {
   display: flex;
   height: 100%;
   min-height: 0;
@@ -42,9 +42,14 @@
   align-items: center;
   gap: 12px;
   padding: 10px 16px;
-  background: var(--bg-surface);
+  background:
+    linear-gradient(180deg, rgba(18, 27, 46, 0.86), rgba(8, 12, 22, 0.78)),
+    var(--bg-surface);
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: var(--shadow-depth-sm);
 }
 
 .aurora-mobile-back {
@@ -58,16 +63,197 @@
   color: var(--text-secondary);
   font-size: 1.25rem;
   line-height: 1;
+  transition:
+    transform 0.35s var(--ease-spring),
+    background var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-med) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard);
+}
+
+.aurora-mobile-back:hover {
+  transform: scale(1.03);
+  color: var(--text-primary);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 18px rgba(34, 211, 238, 0.1);
 }
 
 .aurora-mobile-back:active {
   background: var(--bg-hover);
+  transform: scale(0.97);
+  transition-duration: 80ms;
 }
 
 .aurora-mobile-title {
-  font-weight: 850;
+  font-weight: 800;
   font-size: 1rem;
+  letter-spacing: -0.02em;
   background: var(--accent-gradient);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+/* Conversation info panel polish */
+aside[aria-label="Conversation info"] {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(139, 92, 246, 0.12), transparent 36%),
+    linear-gradient(180deg, rgba(13, 20, 34, 0.9), rgba(7, 11, 20, 0.94)) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow:
+    inset 1px 0 0 rgba(255, 255, 255, 0.045),
+    -18px 0 60px rgba(0, 0, 0, 0.22),
+    -1px 0 24px rgba(139, 92, 246, 0.08);
+  backdrop-filter: blur(20px) saturate(1.12);
+  -webkit-backdrop-filter: blur(20px) saturate(1.12);
+}
+
+aside[aria-label="Conversation info"] > div:first-child {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)),
+    rgba(15, 23, 42, 0.46);
+  box-shadow: var(--shadow-inner-top), 0 12px 32px rgba(2, 8, 23, 0.18);
+}
+
+aside[aria-label="Conversation info"] > div:first-child > span,
+aside[aria-label="Conversation info"] > div:nth-of-type(n+3) > p:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted) !important;
+  font-size: 0.68rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.11em !important;
+  text-transform: uppercase;
+}
+
+aside[aria-label="Conversation info"] > div:nth-of-type(n+3) > p:first-child::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.09), transparent);
+}
+
+aside[aria-label="Conversation info"] > div:first-child > button,
+aside[aria-label="Conversation info"] button {
+  transition:
+    transform 0.35s var(--ease-spring),
+    background var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-med) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard),
+    opacity var(--dur-fast) var(--ease-standard);
+}
+
+aside[aria-label="Conversation info"] > div:first-child > button {
+  border-radius: var(--radius-full) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.025)),
+    rgba(15, 23, 42, 0.72) !important;
+  box-shadow: var(--shadow-inner-top), 0 8px 20px rgba(2, 8, 23, 0.2);
+}
+
+aside[aria-label="Conversation info"] > div:first-child > button:hover {
+  transform: translateY(-1px) scale(1.03);
+  color: var(--text-primary) !important;
+  border-color: rgba(34, 211, 238, 0.24) !important;
+  box-shadow:
+    var(--shadow-inner-top),
+    inset 0 0 16px rgba(34, 211, 238, 0.08),
+    0 12px 28px rgba(2, 8, 23, 0.26);
+}
+
+aside[aria-label="Conversation info"] > div:first-child > button:active,
+aside[aria-label="Conversation info"] button:active:not(:disabled) {
+  transform: scale(0.97);
+  transition-duration: 80ms;
+}
+
+aside[aria-label="Conversation info"] > div:nth-of-type(2) {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(139, 92, 246, 0.1), transparent 48%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.032), rgba(255, 255, 255, 0.012));
+}
+
+aside[aria-label="Conversation info"] > div:nth-of-type(2) > div:first-child {
+  border: 1.5px solid rgba(139, 92, 246, 0.34);
+  box-shadow:
+    var(--shadow-inner-top),
+    0 14px 32px rgba(2, 8, 23, 0.28),
+    0 0 28px rgba(139, 92, 246, 0.18),
+    0 0 18px rgba(34, 211, 238, 0.1);
+}
+
+aside[aria-label="Conversation info"] > div:nth-of-type(2) > p:first-of-type {
+  font-weight: 700 !important;
+  letter-spacing: -0.015em;
+}
+
+aside[aria-label="Conversation info"] > div:nth-of-type(3) > button {
+  min-height: 42px;
+  border-radius: var(--radius-full) !important;
+  border: 1px solid rgba(239, 68, 68, 0.25) !important;
+  background:
+    linear-gradient(180deg, rgba(239, 68, 68, 0.14), rgba(239, 68, 68, 0.08)),
+    rgba(15, 23, 42, 0.52) !important;
+  color: #fecaca !important;
+  text-align: center !important;
+  box-shadow: var(--shadow-inner-top), 0 12px 28px rgba(2, 8, 23, 0.2);
+}
+
+aside[aria-label="Conversation info"] > div:nth-of-type(3) > button:hover:not(:disabled) {
+  transform: translateY(-1px) scale(1.02);
+  border-color: rgba(239, 68, 68, 0.42) !important;
+  background:
+    linear-gradient(180deg, rgba(239, 68, 68, 0.2), rgba(239, 68, 68, 0.11)),
+    rgba(15, 23, 42, 0.58) !important;
+  box-shadow:
+    var(--shadow-inner-top),
+    0 16px 36px rgba(2, 8, 23, 0.26),
+    0 0 26px rgba(239, 68, 68, 0.18);
+}
+
+aside[aria-label="Conversation info"] [role="alertdialog"] {
+  border-radius: var(--radius-panel) !important;
+  box-shadow:
+    var(--shadow-inner-top),
+    0 16px 38px rgba(2, 8, 23, 0.28),
+    0 0 24px rgba(239, 68, 68, 0.1);
+}
+
+aside[aria-label="Conversation info"] [role="alertdialog"] p:first-child {
+  font-weight: 700 !important;
+  letter-spacing: -0.01em;
+}
+
+aside[aria-label="Conversation info"] [role="alertdialog"] button {
+  border-radius: var(--radius-full) !important;
+  box-shadow: var(--shadow-inner-top);
+}
+
+aside[aria-label="Conversation info"] > div:nth-of-type(n+4) > div[style*="gap: 10px"] {
+  margin-bottom: 6px;
+  padding: 9px 10px !important;
+  border-radius: var(--radius-panel);
+  border: 1px solid transparent;
+  background: transparent;
+  box-shadow: none;
+  transition:
+    transform 0.35s var(--ease-spring),
+    background var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-med) var(--ease-standard);
+}
+
+aside[aria-label="Conversation info"] > div:nth-of-type(n+4) > div[style*="gap: 10px"]:hover {
+  transform: translateY(-1px) scale(1.01);
+  border-color: rgba(255, 255, 255, 0.075);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.052), rgba(255, 255, 255, 0.022)),
+    rgba(255, 255, 255, 0.035);
+  box-shadow:
+    var(--shadow-inner-top),
+    0 10px 26px rgba(2, 8, 23, 0.2),
+    0 0 18px rgba(34, 211, 238, 0.06);
+}
+
+aside[aria-label="Conversation info"] > div:nth-of-type(n+4) > div[style*="gap: 10px"] p:first-child {
+  font-weight: 600 !important;
 }

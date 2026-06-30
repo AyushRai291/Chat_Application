@@ -110,7 +110,7 @@
   color: var(--text-primary);
   text-decoration: none;
   font-size: 0.78rem;
-  font-weight: 780;
+  font-weight: 700;
 }
 
 .aurora-image-viewer__btn {
@@ -203,4 +203,263 @@
   .aurora-image-viewer__img {
     max-height: calc(100dvh - 150px);
   }
+}
+
+/* Premium depth pass */
+.aurora-attachment-img,
+.aurora-attachment-video,
+.aurora-attachment-file {
+  border-radius: var(--radius-card);
+  box-shadow:
+    var(--shadow-inner-top),
+    0 10px 28px rgba(2, 8, 23, 0.24),
+    0 24px 58px rgba(2, 8, 23, 0.16);
+}
+
+.aurora-attachment-img,
+.aurora-attachment-video,
+.aurora-attachment-file,
+.aurora-attachment-img-btn,
+.aurora-image-viewer__btn,
+.aurora-image-viewer__close {
+  transition:
+    transform 0.35s var(--ease-spring),
+    background var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-med) var(--ease-standard),
+    filter var(--dur-fast) var(--ease-standard);
+}
+
+.aurora-attachment-file {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.058), rgba(255, 255, 255, 0.028)),
+    rgba(15, 23, 42, 0.68);
+  font-weight: 600;
+}
+
+.aurora-attachment-img-btn:hover .aurora-attachment-img,
+.aurora-attachment-video:hover,
+.aurora-attachment-file:hover {
+  transform: translateY(-1px) scale(1.018);
+  filter: brightness(1.06);
+  box-shadow:
+    var(--shadow-inner-top),
+    0 14px 34px rgba(2, 8, 23, 0.28),
+    0 0 24px rgba(34, 211, 238, 0.09);
+}
+
+.aurora-attachment-img-btn:active,
+.aurora-attachment-file:active {
+  transform: scale(0.97);
+  transition-duration: 80ms;
+}
+
+.aurora-image-viewer {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(139, 92, 246, 0.22), transparent 38%),
+    radial-gradient(circle at 84% 16%, rgba(34, 211, 238, 0.12), transparent 32%),
+    rgba(2, 6, 23, 0.94);
+  backdrop-filter: blur(24px) saturate(1.14);
+  -webkit-backdrop-filter: blur(24px) saturate(1.14);
+}
+
+.aurora-image-viewer__topbar {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.72), rgba(8, 12, 22, 0.62)),
+    rgba(15, 23, 42, 0.56);
+  backdrop-filter: blur(20px) saturate(1.12);
+  -webkit-backdrop-filter: blur(20px) saturate(1.12);
+  box-shadow: var(--shadow-depth-sm);
+}
+
+.aurora-image-viewer__title {
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.aurora-image-viewer__btn,
+.aurora-image-viewer__close {
+  font-weight: 600;
+  box-shadow: var(--shadow-inner-top);
+}
+
+.aurora-image-viewer__btn:hover,
+.aurora-image-viewer__close:hover {
+  transform: translateY(-1px) scale(1.03);
+  box-shadow:
+    var(--shadow-depth-sm),
+    inset 0 0 18px rgba(34, 211, 238, 0.08);
+}
+
+.aurora-image-viewer__btn:active,
+.aurora-image-viewer__close:active {
+  transform: scale(0.97);
+  transition-duration: 80ms;
+}
+
+.aurora-image-viewer__img {
+  border-radius: var(--radius-panel);
+  box-shadow:
+    var(--shadow-inner-top),
+    0 30px 90px rgba(0, 0, 0, 0.48),
+    0 58px 130px rgba(0, 0, 0, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 0 46px rgba(139, 92, 246, 0.12);
+}
+
+/* Media control reskin */
+.aurora-attachment-audio,
+.aurora-composer__voice-audio,
+audio[controls] {
+  min-height: 38px;
+  padding: 3px 6px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.025)),
+    rgba(15, 23, 42, 0.85);
+  color: var(--text-secondary);
+  box-shadow:
+    var(--shadow-inner-top),
+    0 10px 26px rgba(2, 8, 23, 0.22),
+    0 0 18px rgba(139, 92, 246, 0.08);
+  backdrop-filter: blur(14px) saturate(1.1);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+}
+
+.aurora-attachment-audio::-webkit-media-controls-panel,
+.aurora-composer__voice-audio::-webkit-media-controls-panel,
+audio[controls]::-webkit-media-controls-panel {
+  border-radius: var(--radius-full);
+  background:
+    linear-gradient(135deg, rgba(139, 92, 246, 0.14), rgba(34, 211, 238, 0.08)),
+    rgba(15, 23, 42, 0.86);
+  color: var(--text-secondary);
+}
+
+.aurora-attachment-audio::-webkit-media-controls-play-button,
+.aurora-composer__voice-audio::-webkit-media-controls-play-button,
+audio[controls]::-webkit-media-controls-play-button {
+  border-radius: var(--radius-full);
+  background-color: rgba(139, 92, 246, 0.82);
+  box-shadow: 0 0 14px rgba(139, 92, 246, 0.28);
+  filter: saturate(1.1) brightness(1.05);
+}
+
+.aurora-attachment-audio::-webkit-media-controls-current-time-display,
+.aurora-attachment-audio::-webkit-media-controls-time-remaining-display,
+.aurora-composer__voice-audio::-webkit-media-controls-current-time-display,
+.aurora-composer__voice-audio::-webkit-media-controls-time-remaining-display,
+audio[controls]::-webkit-media-controls-current-time-display,
+audio[controls]::-webkit-media-controls-time-remaining-display {
+  color: var(--text-secondary);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+}
+
+.aurora-attachment-audio::-webkit-media-controls-timeline,
+.aurora-attachment-audio::-webkit-media-controls-volume-slider,
+.aurora-composer__voice-audio::-webkit-media-controls-timeline,
+.aurora-composer__voice-audio::-webkit-media-controls-volume-slider,
+audio[controls]::-webkit-media-controls-timeline,
+audio[controls]::-webkit-media-controls-volume-slider {
+  border-radius: var(--radius-full);
+  background:
+    linear-gradient(90deg, rgba(139, 92, 246, 0.5), rgba(34, 211, 238, 0.42)),
+    rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.32);
+}
+
+.aurora-attachment-audio::-webkit-media-controls-mute-button,
+.aurora-composer__voice-audio::-webkit-media-controls-mute-button,
+audio[controls]::-webkit-media-controls-mute-button {
+  border-radius: var(--radius-full);
+  filter: invert(0.88) sepia(0.1) saturate(1.5) hue-rotate(165deg);
+  opacity: 0.82;
+}
+
+.aurora-attachment-img-btn {
+  position: relative;
+  isolation: isolate;
+}
+
+.aurora-attachment-img-btn::after {
+  content: attr(aria-label);
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 2;
+  max-width: calc(100% - 16px);
+  padding: 2px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.55);
+  color: rgba(238, 244, 255, 0.92);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.26);
+}
+
+.aurora-attachment-video {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.16), transparent 48%),
+    rgba(0, 0, 0, 0.42);
+}
+
+.aurora-bubble:has(.aurora-attachment-video)::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 4;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)),
+    rgba(0, 0, 0, 0.5);
+  box-shadow:
+    var(--shadow-inner-top),
+    0 12px 28px rgba(0, 0, 0, 0.34),
+    0 0 20px rgba(139, 92, 246, 0.16);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  transition: transform 0.35s var(--ease-spring), opacity var(--dur-fast) var(--ease-standard);
+}
+
+.aurora-bubble:has(.aurora-attachment-video)::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 5;
+  width: 0;
+  height: 0;
+  margin-left: 2px;
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+  border-left: 13px solid rgba(255, 255, 255, 0.92);
+  transform: translate(-45%, -50%);
+  pointer-events: none;
+}
+
+.aurora-bubble:has(.aurora-attachment-video):hover::before {
+  transform: translate(-50%, -50%) scale(1.08);
+}
+
+.aurora-attachment-video::cue {
+  color: var(--text-primary);
+  background: rgba(2, 6, 23, 0.78);
 }

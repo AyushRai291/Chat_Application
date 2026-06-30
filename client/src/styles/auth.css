@@ -1,0 +1,501 @@
+body:has(#login-email),
+body:has(#signup-email) {
+  overflow: auto;
+}
+
+body:has(#login-email) #root > div,
+body:has(#signup-email) #root > div {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+  display: grid !important;
+  grid-template-columns: minmax(360px, 460px);
+  align-items: center !important;
+  justify-content: center !important;
+  padding: clamp(18px, 4vw, 56px) !important;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 12% 12%, rgba(139, 92, 246, 0.22), transparent 32%),
+    radial-gradient(circle at 88% 18%, rgba(34, 211, 238, 0.18), transparent 30%),
+    radial-gradient(circle at 72% 88%, rgba(52, 211, 153, 0.1), transparent 34%),
+    linear-gradient(180deg, #080c16 0%, #050712 100%) !important;
+  background-size: 120% 120%, 115% 115%, 120% 120%, 100% 100%;
+  animation: aurora-bg-drift 34s ease-in-out infinite alternate;
+}
+
+body:has(#login-email) #root > div::before,
+body:has(#signup-email) #root > div::before,
+body:has(#login-email) #root > div::after,
+body:has(#signup-email) #root > div::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  z-index: -1;
+}
+
+body:has(#login-email) #root > div::before,
+body:has(#signup-email) #root > div::before {
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.014) 1px, transparent 1px),
+    radial-gradient(circle at 18% 68%, rgba(255, 255, 255, 0.18) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 78% 34%, rgba(34, 211, 238, 0.22) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 62% 78%, rgba(139, 92, 246, 0.2) 0 1px, transparent 1.5px);
+  background-size: 46px 46px, 46px 46px, 180px 180px, 240px 240px, 210px 210px;
+  mask-image: radial-gradient(circle at center, black, transparent 78%);
+  opacity: 0.78;
+  animation: aurora-auth-particles 18s linear infinite;
+}
+
+body:has(#login-email) #root > div::after,
+body:has(#signup-email) #root > div::after {
+  width: min(44vw, 560px);
+  height: min(44vw, 560px);
+  right: -12vw;
+  top: -12vh;
+  border-radius: var(--radius-full);
+  background:
+    radial-gradient(circle at 34% 34%, rgba(34, 211, 238, 0.28), transparent 34%),
+    radial-gradient(circle at 70% 68%, rgba(139, 92, 246, 0.24), transparent 42%);
+  filter: blur(34px);
+  opacity: 0.82;
+  transform: translate3d(0, 0, 0);
+  animation: aurora-auth-float 10s ease-in-out infinite alternate;
+}
+
+body:has(#login-email) #root > div > div,
+body:has(#signup-email) #root > div > div {
+  position: relative;
+  width: min(100%, 440px) !important;
+  max-width: 440px !important;
+  padding: clamp(28px, 4vw, 42px) !important;
+  border-radius: var(--radius-float) !important;
+  border: 1px solid rgba(255, 255, 255, 0.095) !important;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(139, 92, 246, 0.18), transparent 34%),
+    radial-gradient(circle at 100% 0%, rgba(34, 211, 238, 0.12), transparent 32%),
+    linear-gradient(180deg, rgba(18, 27, 46, 0.96), rgba(8, 12, 22, 0.94)),
+    var(--surface-float) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    0 32px 90px rgba(0, 0, 0, 0.5),
+    0 52px 130px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(139, 92, 246, 0.08),
+    0 0 60px rgba(139, 92, 246, 0.14) !important;
+  backdrop-filter: blur(24px) saturate(1.14);
+  -webkit-backdrop-filter: blur(24px) saturate(1.14);
+  animation: aurora-auth-card-in 0.42s var(--ease-out) both;
+}
+
+body:has(#login-email) #root > div > div::before,
+body:has(#signup-email) #root > div > div::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--accent-gradient-live);
+  opacity: 0.16;
+  filter: blur(18px);
+}
+
+body:has(#login-email) #root > div > div::after,
+body:has(#signup-email) #root > div > div::after {
+  content: "";
+  position: absolute;
+  width: 220px;
+  height: 220px;
+  left: -130px;
+  bottom: -120px;
+  z-index: -2;
+  border-radius: var(--radius-full);
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.24), transparent 68%);
+  filter: blur(22px);
+  opacity: 0.7;
+  animation: aurora-auth-float 12s ease-in-out infinite alternate-reverse;
+}
+
+body:has(#login-email) #root > div > div > div:first-child,
+body:has(#signup-email) #root > div > div > div:first-child {
+  margin-bottom: 28px !important;
+}
+
+body:has(#login-email) #root > div > div > div:first-child > div,
+body:has(#signup-email) #root > div > div > div:first-child > div {
+  border-radius: var(--radius-panel) !important;
+  background: var(--accent-gradient-live) !important;
+  box-shadow:
+    var(--shadow-inner-top),
+    0 12px 30px rgba(139, 92, 246, 0.28),
+    0 0 28px rgba(34, 211, 238, 0.14) !important;
+}
+
+body:has(#login-email) #root > div > div > div:first-child > span,
+body:has(#signup-email) #root > div > div > div:first-child > span {
+  font-size: 1.25rem !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em !important;
+  background: var(--accent-gradient-live) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+body:has(#login-email) h1,
+body:has(#signup-email) h1 {
+  font-size: clamp(2rem, 4vw, 2.65rem) !important;
+  line-height: 1.02 !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.035em !important;
+  margin-bottom: 10px !important;
+}
+
+body:has(#login-email) h1 + p,
+body:has(#signup-email) h1 + p {
+  color: var(--text-muted) !important;
+  font-size: 0.95rem !important;
+  line-height: 1.55 !important;
+  margin-bottom: 30px !important;
+}
+
+body:has(#login-email) form,
+body:has(#signup-email) form {
+  gap: 18px !important;
+}
+
+body:has(#login-email) label,
+body:has(#signup-email) label {
+  gap: 8px !important;
+}
+
+body:has(#login-email) label > div,
+body:has(#signup-email) label > div {
+  min-height: 48px !important;
+  border-radius: var(--radius-panel) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025)),
+    rgba(15, 23, 42, 0.68) !important;
+  color: var(--text-muted) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 10px 26px rgba(2, 8, 23, 0.2) !important;
+  backdrop-filter: blur(14px) saturate(1.08);
+  -webkit-backdrop-filter: blur(14px) saturate(1.08);
+}
+
+body:has(#login-email) label > div:focus-within,
+body:has(#signup-email) label > div:focus-within {
+  border-color: rgba(139, 92, 246, 0.44) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 4px rgba(139, 92, 246, 0.1),
+    0 0 32px rgba(34, 211, 238, 0.1),
+    0 16px 36px rgba(2, 8, 23, 0.28) !important;
+}
+
+body:has(#login-email) label > div::before,
+body:has(#signup-email) label > div::before {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-full);
+  background: rgba(139, 92, 246, 0.12);
+  color: var(--accent-secondary);
+  font-size: 0.8rem;
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+body:has(#login-email) label:has(#login-email) > div::before,
+body:has(#signup-email) label:has(#signup-email) > div::before {
+  content: "@";
+}
+
+body:has(#login-email) label:has(#login-password) > div::before,
+body:has(#signup-email) label:has(#signup-password) > div::before {
+  content: "#";
+}
+
+body:has(#signup-email) label:has(#signup-name) > div::before {
+  content: "ID";
+  font-size: 0.66rem;
+}
+
+body:has(#login-email) input,
+body:has(#signup-email) input {
+  color: var(--text-primary) !important;
+  font-size: 0.9rem !important;
+  font-weight: 500 !important;
+  caret-color: var(--accent-secondary);
+}
+
+body:has(#login-email) input::placeholder,
+body:has(#signup-email) input::placeholder {
+  color: rgba(125, 138, 165, 0.72) !important;
+}
+
+body:has(#login-email) input:-webkit-autofill,
+body:has(#login-email) input:-webkit-autofill:hover,
+body:has(#login-email) input:-webkit-autofill:focus,
+body:has(#signup-email) input:-webkit-autofill,
+body:has(#signup-email) input:-webkit-autofill:hover,
+body:has(#signup-email) input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px rgba(15, 23, 42, 0.9) inset !important;
+  -webkit-text-fill-color: var(--text-primary) !important;
+  caret-color: var(--accent-secondary);
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+body:has(#login-email) form + p,
+body:has(#signup-email) form + p {
+  margin-top: 26px !important;
+  color: var(--text-muted) !important;
+}
+
+body:has(#login-email) button[aria-label="Sign in"],
+body:has(#signup-email) button[aria-label="Create account"] {
+  min-height: 48px !important;
+  margin-top: 8px !important;
+  border-radius: var(--radius-panel) !important;
+  background: var(--accent-gradient-live) !important;
+  background-size: 240% 240% !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 12px 28px rgba(139, 92, 246, 0.24),
+    0 0 24px rgba(34, 211, 238, 0.12) !important;
+  transition:
+    transform 0.35s var(--ease-spring),
+    filter var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-med) var(--ease-standard),
+    opacity var(--dur-fast) var(--ease-standard) !important;
+  animation: aurora-gradient-flow 8s ease-in-out infinite alternate;
+}
+
+body:has(#login-email) button[aria-label="Sign in"]:hover:not(:disabled),
+body:has(#signup-email) button[aria-label="Create account"]:hover:not(:disabled) {
+  transform: translateY(-1px) scale(1.02);
+  filter: brightness(1.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    0 18px 42px rgba(139, 92, 246, 0.32),
+    0 0 34px rgba(34, 211, 238, 0.18) !important;
+}
+
+body:has(#login-email) button[aria-label="Sign in"]:active:not(:disabled),
+body:has(#signup-email) button[aria-label="Create account"]:active:not(:disabled) {
+  transform: scale(0.97);
+  transition-duration: 80ms !important;
+}
+
+body:has(#login-email) form + p button,
+body:has(#signup-email) form + p button {
+  position: relative;
+  color: var(--accent-secondary) !important;
+  font-weight: 700 !important;
+  text-shadow: 0 0 14px rgba(34, 211, 238, 0.16);
+  transition:
+    color var(--dur-fast) var(--ease-standard),
+    text-shadow var(--dur-fast) var(--ease-standard);
+}
+
+body:has(#login-email) form + p button::after,
+body:has(#signup-email) form + p button::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 1px;
+  background: var(--accent-gradient);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.28s var(--ease-out);
+}
+
+body:has(#login-email) form + p button:hover,
+body:has(#signup-email) form + p button:hover {
+  color: var(--text-primary) !important;
+  text-shadow: 0 0 18px rgba(139, 92, 246, 0.24);
+}
+
+body:has(#login-email) form + p button:hover::after,
+body:has(#signup-email) form + p button:hover::after {
+  transform: scaleX(1);
+}
+
+body:has(#login-email) [role="alert"],
+body:has(#signup-email) [role="alert"] {
+  border-radius: var(--radius-panel) !important;
+  background:
+    linear-gradient(180deg, rgba(239, 68, 68, 0.13), rgba(239, 68, 68, 0.08)),
+    rgba(15, 23, 42, 0.54) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 14px 34px rgba(2, 8, 23, 0.22),
+    0 0 20px rgba(239, 68, 68, 0.1);
+}
+
+@media (min-width: 1024px) {
+  body:has(#login-email) #root > div,
+  body:has(#signup-email) #root > div {
+    grid-template-columns: minmax(380px, 470px) minmax(420px, 560px);
+    gap: clamp(34px, 6vw, 96px);
+  }
+
+  body:has(#login-email) #root > div > div,
+  body:has(#signup-email) #root > div > div {
+    grid-column: 1;
+  }
+
+  body:has(#login-email) #root > div::before,
+  body:has(#signup-email) #root > div::before {
+    mask-image: radial-gradient(circle at 62% 50%, black, transparent 80%);
+  }
+
+  body:has(#login-email) #root > div > div + *,
+  body:has(#signup-email) #root > div > div + * {
+    grid-column: 2;
+  }
+
+  body:has(#login-email) #root > div {
+    justify-content: center !important;
+  }
+
+  body:has(#login-email) #root > div > div,
+  body:has(#signup-email) #root > div > div {
+    justify-self: end;
+    z-index: 1;
+  }
+
+  body:has(#login-email) #root > div::after,
+  body:has(#signup-email) #root > div::after {
+    content: "AURORA\A Real-time conversations, reimagined.\A Secure, fluid messaging wrapped in a luminous AI-native workspace.";
+    grid-column: 2;
+    position: relative;
+    right: auto;
+    top: auto;
+    width: min(42vw, 520px);
+    height: min(62vh, 560px);
+    align-self: center;
+    justify-self: start;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 36px;
+    border-radius: var(--radius-float);
+    border: 1px solid rgba(255, 255, 255, 0.095);
+    background:
+      radial-gradient(circle at 28% 18%, rgba(34, 211, 238, 0.22), transparent 30%),
+      radial-gradient(circle at 78% 30%, rgba(139, 92, 246, 0.24), transparent 36%),
+      radial-gradient(circle at 52% 72%, rgba(52, 211, 153, 0.12), transparent 36%),
+      linear-gradient(180deg, rgba(18, 27, 46, 0.66), rgba(8, 12, 22, 0.48));
+    color: var(--text-secondary);
+    white-space: pre-line;
+    font-size: 1rem;
+    line-height: 1.65;
+    letter-spacing: -0.01em;
+    text-shadow: 0 1px 20px rgba(0, 0, 0, 0.34);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.09),
+      0 32px 90px rgba(0, 0, 0, 0.28),
+      0 0 60px rgba(139, 92, 246, 0.12);
+    filter: none;
+    opacity: 1;
+    backdrop-filter: blur(20px) saturate(1.12);
+    -webkit-backdrop-filter: blur(20px) saturate(1.12);
+  }
+
+  body:has(#login-email) #root > div > div ~ div,
+  body:has(#signup-email) #root > div > div ~ div {
+    display: none;
+  }
+
+  body:has(#login-email) #root > div > div::before,
+  body:has(#signup-email) #root > div > div::before {
+    opacity: 0.18;
+  }
+
+  body:has(#login-email) #root > div > div {
+    margin-right: 0;
+  }
+
+  body:has(#login-email) #root > div > div::after,
+  body:has(#signup-email) #root > div > div::after {
+    width: 260px;
+    height: 260px;
+  }
+}
+
+@media (min-width: 1024px) {
+  body:has(#login-email) #root > div {
+    background:
+      radial-gradient(circle at 12% 12%, rgba(139, 92, 246, 0.22), transparent 32%),
+      radial-gradient(circle at 88% 18%, rgba(34, 211, 238, 0.18), transparent 30%),
+      radial-gradient(circle at 72% 88%, rgba(52, 211, 153, 0.1), transparent 34%),
+      linear-gradient(180deg, #080c16 0%, #050712 100%) !important;
+  }
+
+}
+
+@media (max-width: 760px) {
+  body:has(#login-email) #root > div,
+  body:has(#signup-email) #root > div {
+    padding: 16px !important;
+  }
+
+  body:has(#login-email) #root > div > div,
+  body:has(#signup-email) #root > div > div {
+    width: 100% !important;
+    padding: 28px 20px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body:has(#login-email) #root > div,
+  body:has(#signup-email) #root > div,
+  body:has(#login-email) #root > div::before,
+  body:has(#signup-email) #root > div::before,
+  body:has(#login-email) #root > div::after,
+  body:has(#signup-email) #root > div::after,
+  body:has(#login-email) #root > div > div,
+  body:has(#signup-email) #root > div > div,
+  body:has(#login-email) #root > div > div::after,
+  body:has(#signup-email) #root > div > div::after,
+  body:has(#login-email) button[aria-label="Sign in"],
+  body:has(#signup-email) button[aria-label="Create account"] {
+    animation: none !important;
+  }
+}
+
+@keyframes aurora-auth-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes aurora-auth-float {
+  from {
+    transform: translate3d(-10px, 8px, 0) scale(1);
+  }
+  to {
+    transform: translate3d(14px, -14px, 0) scale(1.04);
+  }
+}
+
+@keyframes aurora-auth-particles {
+  from {
+    background-position: 0 0, 0 0, 0 0, 0 0, 0 0;
+  }
+  to {
+    background-position: 0 0, 0 0, 0 -180px, 0 -240px, 0 -210px;
+  }
+}

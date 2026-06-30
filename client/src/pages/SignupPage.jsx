@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import Input from "../components/ui/Input";
 import Spinner from "../components/ui/Spinner";
+import "../styles/auth.css";
 
 export default function SignupPage({ onSwitchToLogin }) {
   const { signup } = useAuth();

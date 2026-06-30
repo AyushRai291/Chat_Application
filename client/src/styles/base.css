@@ -1,4 +1,4 @@
-﻿*,
+*,
 *::before,
 *::after {
   box-sizing: border-box;
@@ -20,11 +20,14 @@ body {
     radial-gradient(circle at 88% 0%, rgba(34, 211, 238, 0.13), transparent 30%),
     radial-gradient(circle at 50% 110%, rgba(52, 211, 153, 0.08), transparent 34%),
     linear-gradient(180deg, #080c16 0%, #050712 100%);
+  background-size: 120% 120%, 115% 115%, 125% 125%, 100% 100%;
+  background-position: 18% -10%, 88% 0%, 50% 110%, 0 0;
   color: var(--text-primary);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   text-rendering: geometricPrecision;
   overflow: hidden;
+  animation: aurora-bg-drift 34s ease-in-out infinite alternate;
 }
 
 body::before {
@@ -49,8 +52,10 @@ body::after {
   background:
     linear-gradient(120deg, transparent 0%, rgba(139, 92, 246, 0.035) 42%, transparent 70%),
     linear-gradient(60deg, transparent 0%, rgba(34, 211, 238, 0.026) 48%, transparent 78%);
+  background-size: 180% 180%, 160% 160%;
   filter: blur(18px);
   opacity: 0.8;
+  animation: aurora-light-sweep 28s ease-in-out infinite alternate;
 }
 
 #root {
@@ -132,14 +137,15 @@ textarea {
 .glass-panel {
   background: var(--surface-panel);
   border: 1px solid var(--border-subtle);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  box-shadow: var(--shadow-panel);
+  border-radius: var(--radius-panel);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: var(--shadow-depth-md);
 }
 
 .premium-button {
   transition:
-    transform var(--dur-fast) var(--ease-standard),
+    transform 0.35s var(--ease-spring),
     border-color var(--dur-fast) var(--ease-standard),
     background var(--dur-fast) var(--ease-standard),
     box-shadow var(--dur-med) var(--ease-standard),
@@ -147,17 +153,109 @@ textarea {
 }
 
 .premium-button:hover:not(:disabled) {
-  transform: translateY(-1px);
+  transform: translateY(-1px) scale(1.02);
 }
 
 .premium-button:active:not(:disabled) {
-  transform: scale(0.985);
+  transform: scale(0.97);
+  transition-duration: 80ms;
+}
+
+span[aria-label$=" avatar"] {
+  isolation: isolate;
+  filter:
+    drop-shadow(0 8px 18px rgba(2, 8, 23, 0.28))
+    drop-shadow(0 0 10px rgba(139, 92, 246, 0.12));
+}
+
+span[aria-label$=" avatar"]::before {
+  content: "";
+  position: absolute;
+  inset: -1.5px;
+  z-index: -1;
+  border-radius: var(--radius-full);
+  background: var(--accent-gradient-live);
+  opacity: 0.42;
+  filter: saturate(1.2);
+}
+
+span[aria-label$=" avatar"]::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  z-index: -2;
+  border-radius: var(--radius-full);
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.2), transparent 68%);
+  opacity: 0.72;
 }
 
 /* Animations */
 @keyframes aurora-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes aurora-bg-drift {
+  0% {
+    background-position: 18% -10%, 88% 0%, 50% 110%, 0 0;
+  }
+  50% {
+    background-position: 14% 4%, 78% 10%, 58% 102%, 0 0;
+  }
+  100% {
+    background-position: 24% 2%, 92% 12%, 44% 104%, 0 0;
+  }
+}
+
+@keyframes aurora-light-sweep {
+  0% {
+    background-position: 0% 50%, 100% 50%;
+  }
+  100% {
+    background-position: 100% 50%, 0% 50%;
+  }
+}
+
+@keyframes aurora-gradient-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes aurora-message-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.992);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes aurora-list-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes aurora-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 

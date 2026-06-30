@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   /* Core background */
   --bg-base: #070b14;
   --bg-surface: rgba(11, 16, 28, 0.84);
@@ -19,10 +19,15 @@
   --accent-primary: #8b5cf6;
   --accent-secondary: #22d3ee;
   --accent-tertiary: #34d399;
+  --accent-warm: #f59e0b;
+  --accent-rose: #fb7185;
   --accent-glow: rgba(139, 92, 246, 0.34);
   --accent-cyan-glow: rgba(34, 211, 238, 0.22);
+  --accent-warm-glow: rgba(245, 158, 11, 0.26);
+  --accent-rose-glow: rgba(251, 113, 133, 0.2);
   --accent-gradient: linear-gradient(135deg, #8b5cf6 0%, #22d3ee 58%, #34d399 115%);
   --accent-gradient-soft: linear-gradient(135deg, rgba(139, 92, 246, 0.18), rgba(34, 211, 238, 0.11));
+  --accent-gradient-live: linear-gradient(135deg, #8b5cf6 0%, #22d3ee 42%, #34d399 72%, #fb7185 118%);
   --danger-gradient: linear-gradient(135deg, rgba(239, 68, 68, 0.22), rgba(127, 29, 29, 0.18));
 
   /* Text */
@@ -53,6 +58,12 @@
   --shadow-float: 0 24px 80px rgba(2, 8, 23, 0.52);
   --shadow-glow: 0 0 24px rgba(139, 92, 246, 0.2);
   --shadow-glow-strong: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 16px 48px rgba(5, 10, 24, 0.44), 0 0 36px rgba(139, 92, 246, 0.14);
+  --shadow-inner-top: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --shadow-depth-sm: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 8px 24px rgba(0, 0, 0, 0.34), 0 18px 42px rgba(2, 8, 23, 0.22);
+  --shadow-depth-md: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 12px 34px rgba(0, 0, 0, 0.38), 0 28px 70px rgba(2, 8, 23, 0.28);
+  --shadow-depth-lg: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 22px 60px rgba(0, 0, 0, 0.48), 0 42px 110px rgba(2, 8, 23, 0.36), 0 0 54px rgba(139, 92, 246, 0.12);
+  --shadow-glow-accent: 0 0 0 1px rgba(139, 92, 246, 0.18), 0 0 30px rgba(139, 92, 246, 0.24), 0 0 44px rgba(34, 211, 238, 0.12);
+  --shadow-glow-warm: 0 0 0 1px rgba(245, 158, 11, 0.18), 0 0 26px rgba(245, 158, 11, 0.22);
 
   /* Radius */
   --radius-sm: 8px;
@@ -60,6 +71,9 @@
   --radius-lg: 18px;
   --radius-xl: 24px;
   --radius-2xl: 30px;
+  --radius-card: clamp(12px, 1.2vw, 16px);
+  --radius-panel: clamp(16px, 1.8vw, 20px);
+  --radius-float: clamp(20px, 2.4vw, 28px);
   --radius-full: 9999px;
 
   /* Spacing */
@@ -94,6 +108,8 @@
   --dur-slow: 260ms;
   --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-press: cubic-bezier(0.3, 0, 0.5, 1);
 
   /* Layers */
   --z-dropdown: 30;

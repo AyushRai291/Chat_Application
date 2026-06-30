@@ -158,11 +158,40 @@ export default function ChatPanel({ onInfoToggle, showInfoPanel }) {
   if (!selectedConversation) {
     return (
       <main className="aurora-chat-empty">
-        <EmptyState
-          icon="✦"
-          title="Welcome to Aurora"
-          description="Select a conversation or start a new one."
-        />
+        <section className="aurora-empty-hero" aria-label="Aurora welcome">
+          <div className="aurora-empty-hero__visual" aria-hidden="true">
+            <div className="aurora-empty-hero__brand">A</div>
+            <div className="aurora-empty-hero__bubble aurora-empty-hero__bubble--one" />
+            <div className="aurora-empty-hero__bubble aurora-empty-hero__bubble--two" />
+            <div className="aurora-empty-hero__bubble aurora-empty-hero__bubble--three" />
+          </div>
+
+          <div className="aurora-empty-hero__copy">
+            <h1>Welcome to Aurora</h1>
+            <p>Select a conversation to start chatting, or start something new.</p>
+          </div>
+
+          <div className="aurora-empty-hero__actions" aria-label="Suggested actions">
+            {/* Wire these chips to global sidebar/search actions if those handlers move into shared context. */}
+            <button type="button" className="aurora-empty-chip">
+              <span aria-hidden="true">+</span>
+              <strong>Start a new chat</strong>
+              <small>Find someone and open a realtime thread.</small>
+            </button>
+
+            <button type="button" className="aurora-empty-chip">
+              <span aria-hidden="true">#</span>
+              <strong>Create a group</strong>
+              <small>Bring your people into one shared space.</small>
+            </button>
+
+            <button type="button" className="aurora-empty-chip">
+              <span aria-hidden="true">@</span>
+              <strong>Search people</strong>
+              <small>Jump into conversations faster.</small>
+            </button>
+          </div>
+        </section>
       </main>
     );
   }
