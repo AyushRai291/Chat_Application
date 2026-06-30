@@ -7,6 +7,14 @@ import { getBlockedRelationshipUserIds } from "../utils/blocking.js";
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
+const isValidHttpUrl = (value) => {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+};
 
 const reportReasons = new Set([
   "spam",
@@ -44,6 +52,50 @@ export const searchUsers = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     users,
+  });
+});
+
+export const updateMe = asyncHandler(async (req, res) => {
+  const updates = {};
+
+  if (typeof req.body?.name === "string") {
+    const name = req.body.name.trim();
+
+    if (name.length < 2 || name.length > 80) {
+      return res.status(400).json({
+        message: "Name must be between 2 and 80 characters",
+      });
+    }
+
+    updates.name = name;
+  }
+
+  if (typeof req.body?.avatar === "string") {
+    const avatar = req.body.avatar.trim();
+
+    if (avatar.length > 500) {
+      return res.status(400).json({
+        message: "Avatar URL is too long",
+      });
+    }
+
+    if (avatar && !isValidHttpUrl(avatar)) {
+      return res.status(400).json({
+        message: "Avatar must be a valid http or https URL",
+      });
+    }
+
+    updates.avatar = avatar;
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
+    { $set: updates },
+    { new: true, runValidators: true }
+  ).select("-password");
+
+  res.status(200).json({
+    user,
   });
 });
 

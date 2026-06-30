@@ -1,11 +1,8 @@
-import dotenv from "dotenv";
 import http from "http";
 import app from "./app.js";
 import { connectDB } from "./config/db.js";
 import { validateEnv } from "./config/env.js";
 import { setupSocket } from "./socket/socket.js";
-
-dotenv.config();
 
 const PORT = process.env.PORT || 5000;
 
@@ -28,8 +25,8 @@ const startServer = async () => {
       process.exit(1);
     });
 
-    httpServer.listen(PORT, "127.0.0.1", () => {
-      console.log(`Server running on http://127.0.0.1:${PORT}`);
+    httpServer.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
     });
 
     process.on("unhandledRejection", (reason) => {

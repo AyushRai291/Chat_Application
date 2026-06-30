@@ -3,6 +3,7 @@ import { z } from "zod";
 import User from "../models/User.js";
 import { generateToken } from "../utils/generateToken.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { getCookieOptions } from "../config/env.js";
 
 // ------------
 // SIGNUP SETUP
@@ -118,12 +119,7 @@ export const login = asyncHandler(async (req, res) => {
 // ------------
 
 export const logout = asyncHandler(async (req, res) => {
-  res.cookie("jwt", "", {
-    httpOnly: true,
-    sameSite: "strict",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: 0,
-  });
+  res.cookie("jwt", "", getCookieOptions(0));
 
   res.status(200).json({
     message: "Logout successful",

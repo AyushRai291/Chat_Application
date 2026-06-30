@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import { getCorsOrigin } from "./config/env.js";
 import { uploadsDir } from "./middlewares/upload.middleware.js";
 import testRoutes from "./routes/test.routes.js";
 import authRoutes from "./routes/auth.routes.js";
@@ -12,9 +13,11 @@ import notificationRoutes from "./routes/notification.routes.js";
 
 const app = express();
 
+app.set("trust proxy", 1);
+
 app.use(
   cors({
-    origin: true,
+    origin: getCorsOrigin,
     credentials: true,
   })
 );
@@ -25,6 +28,10 @@ app.use("/uploads", express.static(uploadsDir));
 
 app.get("/", (req, res) => {
   res.send("API running");
+});
+
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
 });
 
 app.use("/api/test", testRoutes);

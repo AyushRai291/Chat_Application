@@ -5,12 +5,14 @@ import {
   reportUser,
   searchUsers,
   unblockUser,
+  updateMe,
 } from "../controllers/user.controller.js";
 import { protectRoute } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
 router.get("/", protectRoute, searchUsers);
+router.patch("/me", protectRoute, updateMe);
 router.get("/blocks", protectRoute, getBlockedUsers);
 router.post("/:userId/block", protectRoute, blockUser);
 router.delete("/:userId/block", protectRoute, unblockUser);

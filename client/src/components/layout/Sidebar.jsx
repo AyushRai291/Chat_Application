@@ -7,6 +7,7 @@ import ConversationItem, { getConvName } from "../chat/ConversationItem";
 import UserSearch from "../users/UserSearch";
 import GroupCreateModal from "../users/GroupCreateModal";
 import ConfirmDialog from "../ui/ConfirmDialog";
+import ProfileSettingsModal from "../users/ProfileSettingsModal";
 
 const SearchIcon = () => (
   <svg
@@ -60,6 +61,7 @@ export default function Sidebar() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [openingSaved, setOpeningSaved] = useState(false);
   const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
+  const [showProfileSettings, setShowProfileSettings] = useState(false);
 
   useEffect(() => {
     loadConversations();
@@ -120,6 +122,10 @@ export default function Sidebar() {
 
       {showGroupCreate && (
         <GroupCreateModal onClose={() => setShowGroupCreate(false)} />
+      )}
+
+      {showProfileSettings && (
+        <ProfileSettingsModal onClose={() => setShowProfileSettings(false)} />
       )}
 
       <aside className="aurora-sidebar" aria-label="Conversations sidebar">
@@ -231,23 +237,31 @@ export default function Sidebar() {
         </nav>
 
         <footer className="aurora-sidebar__profile">
-          <Avatar
-            name={user?.name || "User"}
-            src={user?.avatar}
-            size="sm"
-            online={socketConnected}
-          />
+          <button
+            type="button"
+            className="aurora-sidebar__profile-main"
+            onClick={() => setShowProfileSettings(true)}
+            aria-label="Open profile settings"
+            title="Profile settings"
+          >
+            <Avatar
+              name={user?.name || "User"}
+              src={user?.avatar}
+              size="sm"
+              online={socketConnected}
+            />
 
-          <div className="aurora-sidebar__identity">
-            <p className="aurora-sidebar__name">{user?.name || "User"}</p>
+            <span className="aurora-sidebar__identity">
+              <span className="aurora-sidebar__name">{user?.name || "User"}</span>
 
-            <p
-              className="aurora-sidebar__status"
-              data-online={socketConnected ? "true" : undefined}
-            >
-              {socketConnected ? "● Online" : "○ Connecting"}
-            </p>
-          </div>
+              <span
+                className="aurora-sidebar__status"
+                data-online={socketConnected ? "true" : undefined}
+              >
+                {socketConnected ? "● Online" : "○ Connecting"}
+              </span>
+            </span>
+          </button>
 
           <button
             type="button"

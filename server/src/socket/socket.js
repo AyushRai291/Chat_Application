@@ -4,11 +4,7 @@ import jwt from "jsonwebtoken";
 import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
 import User from "../models/User.js";
-
-const ALLOWED_ORIGINS = [
-  "http://localhost:5173",
-  process.env.CLIENT_URL,
-].filter(Boolean);
+import { getClientUrls } from "../config/env.js";
 
 // Socket.io ka single shared instance.
 // Controllers isko getIO() se use kar sakte hain.
@@ -293,7 +289,7 @@ export const getIO = () => ioInstance;
 export const setupSocket = (httpServer) => {
   ioInstance = new Server(httpServer, {
     cors: {
-      origin: ALLOWED_ORIGINS,
+      origin: getClientUrls(),
       credentials: true,
     },
   });
