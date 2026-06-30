@@ -5,6 +5,7 @@ import { validateEnv } from "./config/env.js";
 import { setupSocket } from "./socket/socket.js";
 
 const PORT = process.env.PORT || 5000;
+const HOST = "0.0.0.0";
 
 const startServer = async () => {
   try {
@@ -22,11 +23,12 @@ const startServer = async () => {
       } else {
         console.error("HTTP server error:", err);
       }
+
       process.exit(1);
     });
 
-    httpServer.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
+    httpServer.listen(PORT, HOST, () => {
+      console.log(`Server running on http://${HOST}:${PORT}`);
     });
 
     process.on("unhandledRejection", (reason) => {
