@@ -7,6 +7,9 @@ import {
   getErrorMessage,
   getId,
   mergeMessageByIdOrClientId,
+  setCachedMessages,
+  updateCachedMessageEverywhere,
+  updateCachedMessages,
 } from "./chatHelpers";
 
 export function useMessageActions({
@@ -15,6 +18,7 @@ export function useMessageActions({
   selectedMessageIds,
   selectedConvRef,
   pendingReceiptsRef,
+  messageCacheRef,
   setMessages,
   setConversations,
   setSelectedConversation,
@@ -37,6 +41,21 @@ export function useMessageActions({
     };
 
     setMessages((prev) => prev.map(patchMessage));
+    updateCachedMessageEverywhere(messageCacheRef, (messages) => {
+      let changed = false;
+
+      const nextMessages = messages.map((message) => {
+        const nextMessage = patchMessage(message);
+
+        if (nextMessage !== message) {
+          changed = true;
+        }
+
+        return nextMessage;
+      });
+
+      return changed ? nextMessages : messages;
+    });
 
     setConversations((prev) =>
       prev.map((conversation) =>
@@ -59,6 +78,7 @@ export function useMessageActions({
       getId(prev) === id ? patchMessage(prev) : prev,
     );
   }, [
+    messageCacheRef,
     setConversations,
     setMessages,
     setReplyTargetState,
@@ -69,7 +89,16 @@ export function useMessageActions({
     const id = getId(messageId);
     if (!id) return;
 
-    setMessages((prev) => prev.filter((message) => getId(message) !== id));
+    const removeMessage = (messages) => {
+      if (!messages.some((message) => getId(message) === id)) {
+        return messages;
+      }
+
+      return messages.filter((message) => getId(message) !== id);
+    };
+
+    setMessages(removeMessage);
+    updateCachedMessageEverywhere(messageCacheRef, removeMessage);
 
     setConversations((prev) =>
       prev.map((conversation) =>
@@ -93,6 +122,7 @@ export function useMessageActions({
       return next;
     });
   }, [
+    messageCacheRef,
     setConversations,
     setMessages,
     setReplyTargetState,
@@ -136,6 +166,22 @@ export function useMessageActions({
       if (!conversationId) return null;
       if (!cleanText && attachments.length === 0) return null;
 
+      const updateConversationMessages = (updater) => {
+        if (getId(selectedConvRef.current) === getId(conversationId)) {
+          setMessages((prev) => {
+            const next = updater(prev);
+            setCachedMessages(messageCacheRef, conversationId, next);
+            return next;
+          });
+
+          return;
+        }
+
+        updateCachedMessages(messageCacheRef, conversationId, updater, {
+          createIfMissing: true,
+        });
+      };
+
       const clientMessageId = createClientMessageId();
       const optimisticReplyTo =
         getId(replyTarget) === getId(replyTo) ? replyTarget : null;
@@ -151,7 +197,7 @@ export function useMessageActions({
         localFlag: "isOptimistic",
       });
 
-      setMessages((prev) => {
+      const addOptimisticMessage = (prev) => {
         if (
           prev.some(
             (message) =>
@@ -162,7 +208,9 @@ export function useMessageActions({
         }
 
         return [...prev, optimisticMessage];
-      });
+      };
+
+      updateConversationMessages(addOptimisticMessage);
 
       updateConversationLastMessage(conversationId, optimisticMessage);
       setSendingMessage(true);
@@ -185,13 +233,14 @@ export function useMessageActions({
           isFailed: false,
         };
 
-        setMessages((prev) =>
+        const mergeConfirmedMessage = (prev) =>
           mergeMessageByIdOrClientId(
             prev,
             confirmedMessage,
             pendingReceiptsRef.current,
-          ),
-        );
+          );
+
+        updateConversationMessages(mergeConfirmedMessage);
 
         updateConversationLastMessage(conversationId, confirmedMessage);
         return confirmedMessage;
@@ -199,7 +248,7 @@ export function useMessageActions({
         const errorMessage = getErrorMessage(err, "Failed to send message.");
         setError(errorMessage);
 
-        setMessages((prev) =>
+        const markFailedMessage = (prev) =>
           prev.map((message) =>
             message.clientMessageId === clientMessageId
               ? {
@@ -211,8 +260,9 @@ export function useMessageActions({
                   errorMessage,
                 }
               : message,
-          ),
-        );
+          );
+
+        updateConversationMessages(markFailedMessage);
 
         return null;
       } finally {
@@ -221,6 +271,7 @@ export function useMessageActions({
     },
     [
       pendingReceiptsRef,
+      messageCacheRef,
       replyTarget,
       selectedConvRef,
       setError,

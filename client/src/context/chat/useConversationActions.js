@@ -6,7 +6,11 @@ import {
   applyOnlineStateToConversation,
   applyOnlineStateToList,
   getErrorMessage,
+  getCachedMessages,
   getId,
+  haveSameMessageList,
+  removeCachedConversation,
+  setCachedMessages,
 } from "./chatHelpers";
 
 function getServerUnreadCount(conversation) {
@@ -51,6 +55,7 @@ export function useConversationActions({
   currentUserId,
   selectedConvRef,
   onlineIdsRef,
+  messageCacheRef,
   reloadingConversationsRef,
   incomingNotifyKeysRef,
   lastSoundAtRef,
@@ -180,6 +185,7 @@ export function useConversationActions({
       );
       setReplyTargetState(null);
       setSelectedMessageIds(new Set());
+      removeCachedConversation(messageCacheRef, id);
       clearUnreadCount(id);
 
       setTypingUsersByConversation((prev) => {
@@ -190,6 +196,7 @@ export function useConversationActions({
     },
     [
       clearUnreadCount,
+      messageCacheRef,
       selectedConvRef,
       setConversations,
       setMessages,
@@ -345,30 +352,67 @@ export function useConversationActions({
 
   const loadMessages = useCallback(
     async (conversationId) => {
-      if (!conversationId) return [];
+      const id = getId(conversationId);
+      if (!id) return [];
+
+      const cachedMessages = getCachedMessages(messageCacheRef, id);
+
+      setSelectedMessageIds(new Set());
+      setError(null);
+      clearUnreadCount(id);
+
+      if (cachedMessages) {
+        setLoadingMessages(false);
+        setMessages(cachedMessages);
+        markConversationRead(id);
+
+        messageService
+          .getMessages(id)
+          .then((data) => {
+            const cachedNext = setCachedMessages(messageCacheRef, id, data);
+
+            if (getId(selectedConvRef.current) === id) {
+              setMessages((prev) =>
+                haveSameMessageList(prev, cachedNext) ? prev : cachedNext,
+              );
+              markConversationRead(id);
+            }
+          })
+          .catch(() => {});
+
+        return cachedMessages;
+      }
 
       setLoadingMessages(true);
       setMessages([]);
-      setSelectedMessageIds(new Set());
-      setError(null);
-      clearUnreadCount(conversationId);
 
       try {
-        const data = await messageService.getMessages(conversationId);
+        const data = await messageService.getMessages(id);
+        const cachedNext = setCachedMessages(messageCacheRef, id, data);
 
-        setMessages(data);
-        markConversationRead(conversationId);
-        return data;
+        if (getId(selectedConvRef.current) === id) {
+          setMessages(cachedNext);
+          markConversationRead(id);
+        }
+
+        return cachedNext;
       } catch (err) {
-        setError(getErrorMessage(err, "Failed to load messages."));
+        if (getId(selectedConvRef.current) === id) {
+          setError(getErrorMessage(err, "Failed to load messages."));
+        }
+
         return [];
       } finally {
-        setLoadingMessages(false);
+        if (getId(selectedConvRef.current) === id) {
+          setLoadingMessages(false);
+        }
       }
     },
     [
       clearUnreadCount,
       markConversationRead,
+      messageCacheRef,
+      selectedConvRef,
       setError,
       setLoadingMessages,
       setMessages,
@@ -388,6 +432,7 @@ export function useConversationActions({
         onlineIdsRef.current,
       );
 
+      selectedConvRef.current = withPresence;
       setSelectedConversation(withPresence);
       clearUnreadCount(conversation._id);
 

@@ -2,6 +2,7 @@ import React, {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -76,6 +77,12 @@ export default function ChatPanel({ onInfoToggle, showInfoPanel }) {
     selectedMessageIds,
     selectedMessageCount,
     clearSelectedMessages,
+    setReplyTarget,
+    editMessage,
+    deleteMessageForMe,
+    deleteMessageForEveryone,
+    toggleReaction,
+    toggleMessageSelection,
     deleteSelectedMessagesForMe,
     deleteSelectedMessagesForEveryone,
   } = useChat();
@@ -90,6 +97,82 @@ export default function ChatPanel({ onInfoToggle, showInfoPanel }) {
   const forceScrollRef = useRef(true);
   const lastMessageIdRef = useRef("");
   const messageCountRef = useRef(0);
+  const currentUserId = getId(user);
+
+  const messageActionHandlers = useMemo(
+    () => ({
+      setReplyTarget,
+      editMessage,
+      deleteMessageForMe,
+      deleteMessageForEveryone,
+      toggleReaction,
+      toggleMessageSelection,
+    }),
+    [
+      deleteMessageForEveryone,
+      deleteMessageForMe,
+      editMessage,
+      setReplyTarget,
+      toggleMessageSelection,
+      toggleReaction,
+    ],
+  );
+
+  const messageRows = useMemo(
+    () =>
+      messages.map((message, index) => {
+        const senderId = getId(message.sender);
+        const isOwn = senderId === currentUserId;
+
+        const prev = messages[index - 1];
+        const next = messages[index + 1];
+        const prevSenderId = getId(prev?.sender);
+        const nextSenderId = getId(next?.sender);
+        const startsNewDay = !prev || !isSameMessageDay(prev, message);
+        const endsCurrentDay = !next || !isSameMessageDay(message, next);
+        const isGroupStart =
+          startsNewDay || !prev || prevSenderId !== senderId;
+        const isGroupEnd = endsCurrentDay || !next || nextSenderId !== senderId;
+        const groupGap = startsNewDay ? "6px" : isGroupStart ? "12px" : "2px";
+        const messageId = getId(message);
+
+        return {
+          key: messageId || message.clientMessageId || `message-${index}`,
+          message,
+          isOwn,
+          showAvatar: !isOwn && isGroupStart,
+          showSenderName:
+            !isOwn && Boolean(selectedConversation?.isGroup) && isGroupStart,
+          isGroupStart,
+          isGroupEnd,
+          groupGap,
+          startsNewDay,
+          dateLabel: startsNewDay ? formatDateSeparator(message.createdAt) : "",
+          isSelected: selectedMessageIds.has(messageId),
+        };
+      }),
+    [
+      currentUserId,
+      messages,
+      selectedConversation?.isGroup,
+      selectedMessageIds,
+    ],
+  );
+
+  const selectedMessages = useMemo(
+    () => messages.filter((message) => selectedMessageIds.has(getId(message))),
+    [messages, selectedMessageIds],
+  );
+
+  const canDeleteSelectedForEveryone = useMemo(
+    () =>
+      selectedMessages.length > 0 &&
+      selectedMessages.every(
+        (message) =>
+          getId(message.sender) === currentUserId && !message.deletedForEveryone,
+      ),
+    [currentUserId, selectedMessages],
+  );
 
   const scrollToBottom = useCallback((behavior = "smooth") => {
     const list = messageListRef.current;
@@ -139,7 +222,7 @@ export default function ChatPanel({ onInfoToggle, showInfoPanel }) {
       messages.length > previousCount &&
       Boolean(latestId) &&
       latestId !== previousLatestId;
-    const ownLatest = getId(latestMessage?.sender) === getId(user);
+    const ownLatest = getId(latestMessage?.sender) === currentUserId;
 
     if (
       forceScrollRef.current ||
@@ -153,7 +236,60 @@ export default function ChatPanel({ onInfoToggle, showInfoPanel }) {
 
     lastMessageIdRef.current = latestId;
     messageCountRef.current = messages.length;
-  }, [loadingMessages, messages, scrollToBottom, user]);
+  }, [currentUserId, loadingMessages, messages, scrollToBottom]);
+
+  const handleDeleteSelectedForMe = useCallback(() => {
+    if (selectedMessageCount === 0) return;
+
+    setConfirmAction({
+      type: "delete-selected-me",
+      title: `Delete ${selectedMessageCount} selected message${
+        selectedMessageCount > 1 ? "s" : ""
+      } for you?`,
+      description:
+        "Selected messages will be removed only from your chat. Other users will not be affected.",
+      confirmText: "Delete",
+    });
+  }, [selectedMessageCount]);
+
+  const handleDeleteSelectedForEveryone = useCallback(() => {
+    if (!canDeleteSelectedForEveryone) return;
+
+    setConfirmAction({
+      type: "delete-selected-everyone",
+      title: `Delete ${selectedMessageCount} selected message${
+        selectedMessageCount > 1 ? "s" : ""
+      } for everyone?`,
+      description:
+        "Selected messages will be deleted for everyone. This action cannot be undone.",
+      confirmText: "Delete",
+    });
+  }, [canDeleteSelectedForEveryone, selectedMessageCount]);
+
+  const handleConfirmAction = useCallback(async () => {
+    if (!confirmAction || confirmBusy) return;
+
+    setConfirmBusy(true);
+
+    try {
+      if (confirmAction.type === "delete-selected-me") {
+        await deleteSelectedMessagesForMe();
+      }
+
+      if (confirmAction.type === "delete-selected-everyone") {
+        await deleteSelectedMessagesForEveryone();
+      }
+
+      setConfirmAction(null);
+    } finally {
+      setConfirmBusy(false);
+    }
+  }, [
+    confirmAction,
+    confirmBusy,
+    deleteSelectedMessagesForEveryone,
+    deleteSelectedMessagesForMe,
+  ]);
 
   if (!selectedConversation) {
     return (
@@ -231,65 +367,6 @@ export default function ChatPanel({ onInfoToggle, showInfoPanel }) {
     ? "● Online"
     : "○ Offline";
 
-  const selectedMessages = messages.filter((message) =>
-    selectedMessageIds.has(getId(message))
-  );
-
-  const canDeleteSelectedForEveryone =
-    selectedMessages.length > 0 &&
-    selectedMessages.every(
-      (message) =>
-        getId(message.sender) === getId(user) && !message.deletedForEveryone
-    );
-
-  const handleDeleteSelectedForMe = () => {
-    if (selectedMessageCount === 0) return;
-
-    setConfirmAction({
-      type: "delete-selected-me",
-      title: `Delete ${selectedMessageCount} selected message${
-        selectedMessageCount > 1 ? "s" : ""
-      } for you?`,
-      description:
-        "Selected messages will be removed only from your chat. Other users will not be affected.",
-      confirmText: "Delete",
-    });
-  };
-
-  const handleDeleteSelectedForEveryone = () => {
-    if (!canDeleteSelectedForEveryone) return;
-
-    setConfirmAction({
-      type: "delete-selected-everyone",
-      title: `Delete ${selectedMessageCount} selected message${
-        selectedMessageCount > 1 ? "s" : ""
-      } for everyone?`,
-      description:
-        "Selected messages will be deleted for everyone. This action cannot be undone.",
-      confirmText: "Delete",
-    });
-  };
-
-  const handleConfirmAction = async () => {
-    if (!confirmAction || confirmBusy) return;
-
-    setConfirmBusy(true);
-
-    try {
-      if (confirmAction.type === "delete-selected-me") {
-        await deleteSelectedMessagesForMe();
-      }
-
-      if (confirmAction.type === "delete-selected-everyone") {
-        await deleteSelectedMessagesForEveryone();
-      }
-
-      setConfirmAction(null);
-    } finally {
-      setConfirmBusy(false);
-    }
-  };
-
   return (
     <main aria-label="Chat area" className="aurora-chat">
       <header className="aurora-chat__header">
@@ -364,45 +441,22 @@ export default function ChatPanel({ onInfoToggle, showInfoPanel }) {
           )}
 
           {!loadingMessages &&
-            messages.map((message, index) => {
-              const senderId = getId(message.sender);
-              const isOwn = senderId === getId(user);
-
-              const prev = messages[index - 1];
-              const next = messages[index + 1];
-              const prevSenderId = getId(prev?.sender);
-              const nextSenderId = getId(next?.sender);
-              const startsNewDay = !prev || !isSameMessageDay(prev, message);
-              const endsCurrentDay = !next || !isSameMessageDay(message, next);
-              const isGroupStart =
-                startsNewDay || !prev || prevSenderId !== senderId;
-              const isGroupEnd =
-                endsCurrentDay || !next || nextSenderId !== senderId;
-              const groupGap = startsNewDay
-                ? "6px"
-                : isGroupStart
-                ? "12px"
-                : "2px";
-              const showAvatar = !isOwn && isGroupStart;
-
+            messageRows.map((row) => {
               return (
-                <React.Fragment key={message._id}>
-                  {startsNewDay && (
-                    <DateSeparator
-                      label={formatDateSeparator(message.createdAt)}
-                    />
-                  )}
+                <React.Fragment key={row.key}>
+                  {row.startsNewDay && <DateSeparator label={row.dateLabel} />}
 
                   <MessageBubble
-                    message={message}
-                    isOwn={isOwn}
-                    showAvatar={showAvatar}
-                    showSenderName={
-                      !isOwn && selectedConversation.isGroup && isGroupStart
-                    }
-                    isGroupStart={isGroupStart}
-                    isGroupEnd={isGroupEnd}
-                    groupGap={groupGap}
+                    message={row.message}
+                    isOwn={row.isOwn}
+                    showAvatar={row.showAvatar}
+                    showSenderName={row.showSenderName}
+                    isGroupStart={row.isGroupStart}
+                    isGroupEnd={row.isGroupEnd}
+                    groupGap={row.groupGap}
+                    isSelected={row.isSelected}
+                    isSelectionMode={selectedMessageCount > 0}
+                    actions={messageActionHandlers}
                   />
                 </React.Fragment>
               );

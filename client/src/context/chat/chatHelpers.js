@@ -1,4 +1,5 @@
 export const getId = (value) => String(value?._id || value || "");
+export const MESSAGE_CACHE_LIMIT = 15;
 
 export const getErrorMessage = (err, fallback) =>
   err?.response?.data?.message || err?.message || fallback;
@@ -90,6 +91,114 @@ export const mergeMessageByIdOrClientId = (
   }
 
   return [...messages, cleanedMessage];
+};
+
+export const getCachedMessages = (cacheRef, conversationId) => {
+  const id = getId(conversationId);
+  const cache = cacheRef?.current;
+
+  if (!id || !cache?.has(id)) return null;
+
+  const messages = cache.get(id);
+
+  cache.delete(id);
+  cache.set(id, messages);
+
+  return messages;
+};
+
+export const setCachedMessages = (
+  cacheRef,
+  conversationId,
+  messages,
+  limit = MESSAGE_CACHE_LIMIT,
+) => {
+  const id = getId(conversationId);
+  const cache = cacheRef?.current;
+
+  if (!id || !cache) return [];
+
+  const nextMessages = Array.isArray(messages) ? messages : [];
+
+  cache.delete(id);
+  cache.set(id, nextMessages);
+
+  while (cache.size > limit) {
+    const oldestKey = cache.keys().next().value;
+    cache.delete(oldestKey);
+  }
+
+  return nextMessages;
+};
+
+export const updateCachedMessages = (
+  cacheRef,
+  conversationId,
+  updater,
+  { createIfMissing = false } = {},
+) => {
+  const id = getId(conversationId);
+  const cache = cacheRef?.current;
+
+  if (!id || !cache) return null;
+  if (!cache.has(id) && !createIfMissing) return null;
+
+  const current = cache.get(id) || [];
+  const nextMessages =
+    typeof updater === "function" ? updater(current) : updater;
+
+  return setCachedMessages(cacheRef, id, nextMessages);
+};
+
+export const updateCachedMessageEverywhere = (cacheRef, updater) => {
+  const cache = cacheRef?.current;
+  if (!cache) return;
+
+  Array.from(cache.entries()).forEach(([conversationId, messages]) => {
+    const nextMessages =
+      typeof updater === "function" ? updater(messages, conversationId) : messages;
+
+    if (nextMessages !== messages) {
+      setCachedMessages(cacheRef, conversationId, nextMessages);
+    }
+  });
+};
+
+export const removeCachedConversation = (cacheRef, conversationId) => {
+  const id = getId(conversationId);
+  const cache = cacheRef?.current;
+
+  if (id && cache) {
+    cache.delete(id);
+  }
+};
+
+const getMessageCacheSignature = (message) => {
+  if (!message) return "";
+
+  return [
+    getId(message),
+    message.clientMessageId || "",
+    message.text || "",
+    message.status || "",
+    message.updatedAt || "",
+    message.createdAt || "",
+    message.isEdited ? "1" : "0",
+    message.deletedForEveryone ? "1" : "0",
+    message.attachments?.length || 0,
+    message.reactions?.length || 0,
+  ].join("|");
+};
+
+export const haveSameMessageList = (first = [], second = []) => {
+  if (first === second) return true;
+  if (first.length !== second.length) return false;
+
+  return first.every(
+    (message, index) =>
+      getMessageCacheSignature(message) ===
+      getMessageCacheSignature(second[index]),
+  );
 };
 
 export const buildLocalMessage = ({

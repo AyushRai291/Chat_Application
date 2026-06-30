@@ -22,6 +22,17 @@ export const populateConversation = (query) =>
     .populate("deletedBy", "name email avatar")
     .populate("lastMessage");
 
+export const populateConversationList = (query, userId) =>
+  query
+    .populate("participants", "name avatar isOnline")
+    .populate({
+      path: "lastMessage",
+      select: "text sender attachments createdAt status deletedForEveryone",
+      match: {
+        deletedFor: { $ne: userId },
+      },
+    });
+
 export const toIdString = (value) => value?._id?.toString() || value?.toString();
 
 export const uniqueIdStrings = (values = []) =>

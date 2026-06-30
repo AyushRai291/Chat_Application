@@ -1,10 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { connectSocket, disconnectSocket } from "../../lib/socket";
 import {
   applyReceiptToMessage,
   getId,
   hasSameClientMessageId,
   mergeMessageByIdOrClientId,
+  setCachedMessages,
+  updateCachedMessages,
 } from "./chatHelpers";
 
 export function useChatSocket({
@@ -13,6 +15,7 @@ export function useChatSocket({
   conversationsRef,
   onlineIdsRef,
   pendingReceiptsRef,
+  messageCacheRef,
 
   setSocketConnected,
   setMessages,
@@ -30,6 +33,9 @@ export function useChatSocket({
   updateConversationLastMessage,
   updatePresenceEverywhere,
 }) {
+  const hasConnectedOnceRef = useRef(false);
+  const shouldReloadOnConnectRef = useRef(false);
+
   useEffect(() => {
     if (!currentUserId) return;
 
@@ -57,12 +63,22 @@ export function useChatSocket({
 
     socket.on("connect", () => {
       setSocketConnected(true);
-      reloadConversationsOnce();
+
+      if (shouldReloadOnConnectRef.current) {
+        reloadConversationsOnce();
+      }
+
+      hasConnectedOnceRef.current = true;
+      shouldReloadOnConnectRef.current = false;
       markConversationRead(selectedConvRef.current?._id);
     });
 
     socket.on("disconnect", () => {
       setSocketConnected(false);
+
+      if (hasConnectedOnceRef.current) {
+        shouldReloadOnConnectRef.current = true;
+      }
     });
 
     socket.on("message:pending", (data) => {
@@ -87,6 +103,22 @@ export function useChatSocket({
 
       if (getId(conversationId) === getId(selectedId)) {
         setMessages((prev) => {
+          if (
+            prev.some(
+              (message) =>
+                getId(message) === getId(pendingMessage) ||
+                hasSameClientMessageId(message, pendingMessage),
+            )
+          ) {
+            return prev;
+          }
+
+          const next = [...prev, pendingMessage];
+          setCachedMessages(messageCacheRef, conversationId, next);
+          return next;
+        });
+      } else {
+        updateCachedMessages(messageCacheRef, conversationId, (prev) => {
           if (
             prev.some(
               (message) =>
@@ -124,13 +156,15 @@ export function useChatSocket({
       };
 
       if (getId(conversationId) === getId(selectedId)) {
-        setMessages((prev) =>
-          mergeMessageByIdOrClientId(
+        setMessages((prev) => {
+          const next = mergeMessageByIdOrClientId(
             prev,
             confirmedMessage,
             pendingReceiptsRef.current,
-          ),
-        );
+          );
+          setCachedMessages(messageCacheRef, conversationId, next);
+          return next;
+        });
 
         if (getId(message.sender) !== getId(currentUserId)) {
           window.setTimeout(() => {
@@ -156,6 +190,16 @@ export function useChatSocket({
       const storedReceipt = pendingReceiptsRef.current.get(
         getId(confirmedMessage),
       );
+
+      if (getId(conversationId) !== getId(selectedId)) {
+        updateCachedMessages(messageCacheRef, conversationId, (prev) =>
+          mergeMessageByIdOrClientId(
+            prev,
+            confirmedMessage,
+            pendingReceiptsRef.current,
+          ),
+        );
+      }
 
       const lastMessage = storedReceipt
         ? applyReceiptToMessage(confirmedMessage, storedReceipt)
@@ -261,13 +305,25 @@ export function useChatSocket({
         });
 
         if (getId(selectedConvRef.current) === conversationId) {
-          setMessages((prev) =>
-            prev.map((message) => {
+          setMessages((prev) => {
+            const next = prev.map((message) => {
               const receipt = receiptMap.get(getId(message));
               if (!receipt) return message;
 
               pendingReceiptsRef.current.delete(getId(message));
               return applyReceiptToMessage(message, receipt, fallbackStatus);
+            });
+
+            setCachedMessages(messageCacheRef, conversationId, next);
+            return next;
+          });
+        } else {
+          updateCachedMessages(messageCacheRef, conversationId, (prev) =>
+            prev.map((message) => {
+              const receipt = receiptMap.get(getId(message));
+              return receipt
+                ? applyReceiptToMessage(message, receipt, fallbackStatus)
+                : message;
             }),
           );
         }
@@ -341,8 +397,17 @@ export function useChatSocket({
             pendingReceiptsRef.current.delete(messageId);
           }
 
+          setCachedMessages(messageCacheRef, conversationId, next);
           return next;
         });
+      } else {
+        updateCachedMessages(messageCacheRef, conversationId, (prev) =>
+          prev.map((message) =>
+            getId(message) === messageId
+              ? applyReceiptToMessage(message, receipt, fallbackStatus)
+              : message,
+          ),
+        );
       }
 
       setConversations((prev) =>
@@ -451,6 +516,7 @@ export function useChatSocket({
     conversationsRef,
     onlineIdsRef,
     pendingReceiptsRef,
+    messageCacheRef,
     setSocketConnected,
     setMessages,
     setConversations,

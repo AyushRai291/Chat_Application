@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import compression from "compression";
 import cookieParser from "cookie-parser";
 import { getCorsOrigin } from "./config/env.js";
 import { uploadsDir } from "./middlewares/upload.middleware.js";
@@ -14,6 +15,8 @@ import notificationRoutes from "./routes/notification.routes.js";
 const app = express();
 
 app.set("trust proxy", 1);
+
+app.use(compression({ threshold: 0 }));
 
 app.use(
   cors({

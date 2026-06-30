@@ -10,11 +10,12 @@ import {
   findOrCreateConversation,
   isValidObjectId,
   populateConversation,
+  populateConversationList,
   toIdString,
 } from "./conversation.helpers.js";
 
 export const getConversations = asyncHandler(async (req, res) => {
-  const conversations = await populateConversation(
+  const conversations = await populateConversationList(
     Conversation.find({
       participants: req.user._id,
       deletedAt: null,
@@ -24,7 +25,8 @@ export const getConversations = asyncHandler(async (req, res) => {
         { isGroup: true },
         { isSelf: false, isGroup: false, participants: { $size: 2 } },
       ],
-    }).sort({ updatedAt: -1 })
+    }).sort({ updatedAt: -1 }),
+    req.user._id
   );
   const currentUserId = req.user._id.toString();
   const conversationIds = conversations.map((conversation) => conversation._id);

@@ -41,6 +41,7 @@ export function ChatProvider({ children }) {
   const onlineIdsRef = useRef(new Set());
   const reloadingConversationsRef = useRef(false);
   const pendingReceiptsRef = useRef(new Map());
+  const messageCacheRef = useRef(new Map());
   const incomingNotifyKeysRef = useRef(new Set());
   const lastSoundAtRef = useRef(0);
   const playIncomingSoundRef = useRef(() => {});
@@ -69,6 +70,7 @@ export function ChatProvider({ children }) {
     currentUserId,
     selectedConvRef,
     onlineIdsRef,
+    messageCacheRef,
     reloadingConversationsRef,
     incomingNotifyKeysRef,
     lastSoundAtRef,
@@ -109,6 +111,7 @@ export function ChatProvider({ children }) {
     selectedMessageIds,
     selectedConvRef,
     pendingReceiptsRef,
+    messageCacheRef,
     setMessages,
     setConversations,
     setSelectedConversation,
@@ -125,6 +128,7 @@ export function ChatProvider({ children }) {
     conversationsRef,
     onlineIdsRef,
     pendingReceiptsRef,
+    messageCacheRef,
 
     setSocketConnected,
     setMessages,
