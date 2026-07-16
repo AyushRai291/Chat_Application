@@ -1,6 +1,8 @@
 import React, {
+  Suspense,
   useCallback,
   useEffect,
+  lazy,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -14,13 +16,15 @@ import EmptyState from "../ui/EmptyState";
 import Spinner from "../ui/Spinner";
 import Avatar from "../ui/Avatar";
 import { getConvAvatar, getConvName } from "../chat/ConversationItem";
-import ConfirmDialog from "../ui/ConfirmDialog";
+import { DialogSuspenseFallback } from "../ui/SuspenseFallback";
 import {
   DateSeparator,
   HeaderBtn,
   SelectionToolbar,
   TypingDots,
 } from "./chatPanelParts";
+
+const ConfirmDialog = lazy(() => import("../ui/ConfirmDialog"));
 
 const getId = (value) => String(value?._id || value || "");
 const NEAR_BOTTOM_PX = 140;
@@ -485,17 +489,21 @@ export default function ChatPanel({ onInfoToggle, showInfoPanel }) {
 
       <Composer />
 
-      <ConfirmDialog
-        open={Boolean(confirmAction)}
-        title={confirmAction?.title}
-        description={confirmAction?.description}
-        confirmText={confirmAction?.confirmText}
-        busy={confirmBusy}
-        onCancel={() => {
-          if (!confirmBusy) setConfirmAction(null);
-        }}
-        onConfirm={handleConfirmAction}
-      />
+      {confirmAction && (
+        <Suspense fallback={<DialogSuspenseFallback />}>
+          <ConfirmDialog
+            open={Boolean(confirmAction)}
+            title={confirmAction?.title}
+            description={confirmAction?.description}
+            confirmText={confirmAction?.confirmText}
+            busy={confirmBusy}
+            onCancel={() => {
+              if (!confirmBusy) setConfirmAction(null);
+            }}
+            onConfirm={handleConfirmAction}
+          />
+        </Suspense>
+      )}
     </main>
   );
 }

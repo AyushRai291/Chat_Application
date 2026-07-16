@@ -1,13 +1,15 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useChat } from "../../context/ChatContext";
 import Avatar from "../ui/Avatar";
 import Spinner from "../ui/Spinner";
 import ConversationItem, { getConvName } from "../chat/ConversationItem";
-import UserSearch from "../users/UserSearch";
-import GroupCreateModal from "../users/GroupCreateModal";
-import ConfirmDialog from "../ui/ConfirmDialog";
-import ProfileSettingsModal from "../users/ProfileSettingsModal";
+import { DialogSuspenseFallback } from "../ui/SuspenseFallback";
+
+const UserSearch = lazy(() => import("../users/UserSearch"));
+const GroupCreateModal = lazy(() => import("../users/GroupCreateModal"));
+const ConfirmDialog = lazy(() => import("../ui/ConfirmDialog"));
+const ProfileSettingsModal = lazy(() => import("../users/ProfileSettingsModal"));
 
 const SearchIcon = () => (
   <svg
@@ -117,15 +119,21 @@ export default function Sidebar() {
   return (
     <>
       {showUserSearch && (
-        <UserSearch onClose={() => setShowUserSearch(false)} />
+        <Suspense fallback={<DialogSuspenseFallback />}>
+          <UserSearch onClose={() => setShowUserSearch(false)} />
+        </Suspense>
       )}
 
       {showGroupCreate && (
-        <GroupCreateModal onClose={() => setShowGroupCreate(false)} />
+        <Suspense fallback={<DialogSuspenseFallback />}>
+          <GroupCreateModal onClose={() => setShowGroupCreate(false)} />
+        </Suspense>
       )}
 
       {showProfileSettings && (
-        <ProfileSettingsModal onClose={() => setShowProfileSettings(false)} />
+        <Suspense fallback={<DialogSuspenseFallback />}>
+          <ProfileSettingsModal onClose={() => setShowProfileSettings(false)} />
+        </Suspense>
       )}
 
       <aside className="aurora-sidebar" aria-label="Conversations sidebar">
@@ -293,19 +301,23 @@ export default function Sidebar() {
         </footer>
       </aside>
 
-      <ConfirmDialog
-        open={confirmLogoutOpen}
-        title="Log out?"
-        description="You will be signed out from Aurora on this browser."
-        confirmText="Log out"
-        cancelText="Cancel"
-        busy={loggingOut}
-        danger={false}
-        onCancel={() => {
-          if (!loggingOut) setConfirmLogoutOpen(false);
-        }}
-        onConfirm={handleLogout}
-      />
+      {confirmLogoutOpen && (
+        <Suspense fallback={<DialogSuspenseFallback />}>
+          <ConfirmDialog
+            open={confirmLogoutOpen}
+            title="Log out?"
+            description="You will be signed out from Aurora on this browser."
+            confirmText="Log out"
+            cancelText="Cancel"
+            busy={loggingOut}
+            danger={false}
+            onCancel={() => {
+              if (!loggingOut) setConfirmLogoutOpen(false);
+            }}
+            onConfirm={handleLogout}
+          />
+        </Suspense>
+      )}
     </>
   );
 }

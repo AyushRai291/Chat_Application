@@ -27,7 +27,7 @@ app.use(
 
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
-app.use("/uploads", express.static(uploadsDir));
+app.use("/uploads", express.static(uploadsDir, { maxAge: "7d", immutable: true }));
 
 app.get("/", (req, res) => {
   res.send("API running");

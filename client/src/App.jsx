@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { Suspense, lazy, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ChatProvider } from './context/ChatContext';
-import AppShell from './components/layout/AppShell';
-import LoginPage from './pages/LoginPage';
-import SignupPage from './pages/SignupPage';
 import Spinner from './components/ui/Spinner';
+import { PageSuspenseFallback } from './components/ui/SuspenseFallback';
+
+const AppShell = lazy(() => import('./components/layout/AppShell'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const SignupPage = lazy(() => import('./pages/SignupPage'));
 
 function AppRouter() {
   const { user, loading } = useAuth();
@@ -29,14 +31,20 @@ function AppRouter() {
   }
 
   if (!user) {
-    return authPage === 'login'
-      ? <LoginPage onSwitchToSignup={() => setAuthPage('signup')} />
-      : <SignupPage onSwitchToLogin={() => setAuthPage('login')} />;
+    return (
+      <Suspense fallback={<PageSuspenseFallback label="Loading page" />}>
+        {authPage === 'login'
+          ? <LoginPage onSwitchToSignup={() => setAuthPage('signup')} />
+          : <SignupPage onSwitchToLogin={() => setAuthPage('login')} />}
+      </Suspense>
+    );
   }
 
   return (
     <ChatProvider>
-      <AppShell />
+      <Suspense fallback={<PageSuspenseFallback label="Loading chat" />}>
+        <AppShell />
+      </Suspense>
     </ChatProvider>
   );
 }

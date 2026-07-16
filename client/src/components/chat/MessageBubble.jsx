@@ -1,18 +1,28 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Avatar from "../ui/Avatar";
-import ConfirmDialog from "../ui/ConfirmDialog";
 import AttachmentView from "./messages/AttachmentView";
-import ImageViewer from "./messages/ImageViewer";
 import MessageActionsMenu from "./messages/MessageActionsMenu";
 import MessageEditForm from "./messages/MessageEditForm";
 import MessageMeta from "./messages/MessageMeta";
 import ReplyPreview from "./messages/ReplyPreview";
+import { DialogSuspenseFallback } from "../ui/SuspenseFallback";
 import {
   getBubbleRadius,
   getId,
   getReactionCounts,
   getSenderName,
 } from "./messages/messageBubbleUtils";
+
+const ConfirmDialog = lazy(() => import("../ui/ConfirmDialog"));
+const ImageViewer = lazy(() => import("./messages/ImageViewer"));
 
 const LONG_PRESS_MS = 520;
 const TOUCH_MOVE_CANCEL_PX = 12;
@@ -521,17 +531,25 @@ function MessageBubble({
         </div>
       </div>
 
-      <ImageViewer image={viewerImage} onClose={handleViewerClose} />
+      {viewerImage && (
+        <Suspense fallback={<DialogSuspenseFallback label="Loading preview" />}>
+          <ImageViewer image={viewerImage} onClose={handleViewerClose} />
+        </Suspense>
+      )}
 
-      <ConfirmDialog
-        open={Boolean(confirmAction)}
-        title={confirmAction?.title}
-        description={confirmAction?.description}
-        confirmText={confirmAction?.confirmText}
-        busy={Boolean(busyAction)}
-        onCancel={handleConfirmCancel}
-        onConfirm={handleConfirm}
-      />
+      {confirmAction && (
+        <Suspense fallback={<DialogSuspenseFallback />}>
+          <ConfirmDialog
+            open={Boolean(confirmAction)}
+            title={confirmAction?.title}
+            description={confirmAction?.description}
+            confirmText={confirmAction?.confirmText}
+            busy={Boolean(busyAction)}
+            onCancel={handleConfirmCancel}
+            onConfirm={handleConfirm}
+          />
+        </Suspense>
+      )}
     </>
   );
 }

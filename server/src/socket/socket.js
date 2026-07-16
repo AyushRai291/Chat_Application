@@ -167,6 +167,7 @@ const markMessagesDeliveredForUser = async (userId, user) => {
   }).select("conversation sender status deliveredTo readBy text attachments");
 
   const receiptsByConversation = new Map();
+  const receiptUpdateOperations = [];
 
   for (const message of messages) {
     const conversation = conversationById.get(message.conversation.toString());
@@ -183,7 +184,17 @@ const markMessagesDeliveredForUser = async (userId, user) => {
       readBy: message.readBy,
     });
 
-    await message.save();
+    receiptUpdateOperations.push({
+      updateOne: {
+        filter: { _id: message._id },
+        update: {
+          $set: {
+            deliveredTo: message.deliveredTo,
+            status: message.status,
+          },
+        },
+      },
+    });
 
     const conversationId = conversation._id.toString();
     const currentReceipts = receiptsByConversation.get(conversationId) || [];
@@ -192,6 +203,10 @@ const markMessagesDeliveredForUser = async (userId, user) => {
       ...currentReceipts,
       buildReceipt(message),
     ]);
+  }
+
+  if (receiptUpdateOperations.length > 0) {
+    await Message.bulkWrite(receiptUpdateOperations);
   }
 
   receiptsByConversation.forEach((receipts, conversationId) => {
@@ -218,6 +233,7 @@ const markConversationReadForUser = async ({ conversation, userId, user }) => {
   }
 
   const receipts = [];
+  const receiptUpdateOperations = [];
 
   for (const message of messages) {
     message.deliveredTo = addUniqueId(message.deliveredTo, userId);
@@ -229,9 +245,22 @@ const markConversationReadForUser = async ({ conversation, userId, user }) => {
       readBy: message.readBy,
     });
 
-    await message.save();
+    receiptUpdateOperations.push({
+      updateOne: {
+        filter: { _id: message._id },
+        update: {
+          $set: {
+            deliveredTo: message.deliveredTo,
+            readBy: message.readBy,
+            status: message.status,
+          },
+        },
+      },
+    });
     receipts.push(buildReceipt(message));
   }
+
+  await Message.bulkWrite(receiptUpdateOperations);
 
   emitToParticipants(conversation, "receipt:read", {
     conversationId: conversation._id.toString(),
